@@ -47,7 +47,7 @@ export const shiftQueries = {
   }),
   createAbsence: formatTemplateString(baseQueries.Create, {
     InsertTable: TableNames.Absences,
-    InsertFields: 'dates, type, hours, comment, user_id',
+    InsertFields: 'date, type, hours, comment, user_id',
     InsertOutput: 'RETURNING id',
   }),
   update: formatTemplateString(baseQueries.Update, {

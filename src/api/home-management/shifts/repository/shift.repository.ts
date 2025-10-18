@@ -132,8 +132,7 @@ export class ShiftRepositoryImplementation
       '@InsertValues',
       `'${dto.absenceDate}', '${dto.absenceType}', '${dto.absenceHours}', '${dto.absenceComment}', '${user.userID}'`,
     );
-    const responseProduct =
-      await this.homeManagementDbConnection.execute(sqlProduct);
+    await this.homeManagementDbConnection.execute(sqlProduct);
 
     await this.saveLog('insert', 'absence', `Created absence`);
   }

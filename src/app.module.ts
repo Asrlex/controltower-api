@@ -21,7 +21,6 @@ import { AuthModule } from './api/auth/auth.module';
           .valid('development', 'production', 'test')
           .default('development'),
         PORT: Joi.number().default(3000),
-        AR_API_KEY: Joi.string().required(),
         GLOBAL_API_KEY: Joi.string(),
       }),
     }),

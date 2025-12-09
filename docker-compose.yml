@@ -1,0 +1,17 @@
+version: '3.9'
+services:
+  homemgt-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env.production
+    restart: unless-stopped
+    networks:
+      - microservices-net
+    ports:
+      - '3002:3002'
+
+networks:
+  microservices-net:
+    external: true

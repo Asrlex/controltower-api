@@ -276,7 +276,9 @@ export class AuthService {
       expectedRPID: process.env.RP_ID,
       credential: {
         id: credentials.credentialID,
-        publicKey: credentials.credentialPublicKey,
+        publicKey: new Uint8Array(
+          credentials.credentialPublicKey.buffer.slice(0),
+        ) as Uint8Array<ArrayBuffer>,
         counter: credentials.credentialCounter,
       },
     });

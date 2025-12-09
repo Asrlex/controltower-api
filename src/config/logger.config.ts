@@ -7,7 +7,7 @@ const { combine, timestamp, label, printf } = format;
  * If the log level is error, the stack trace is included in the log message
  */
 const customFormat = printf(({ level, message, timestamp, stack }) => {
-  const formattedTimestamp = new Date(timestamp).toLocaleString();
+  const formattedTimestamp = new Date(timestamp as string).toLocaleString();
   return `${formattedTimestamp} - [${level}]: ${stack || message}`;
 });
 

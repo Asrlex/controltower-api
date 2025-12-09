@@ -178,7 +178,7 @@ export class StockProductRepositoryImplementation
     const response = await this.shoppingListProductRepository.create({
       shoppingListProductID: originalProduct.product.productID,
       shoppingListAmount: originalProduct.stockProductAmount,
-      shopID: '2',
+      shopID: 2,
     });
     await this.saveLog(
       'update',

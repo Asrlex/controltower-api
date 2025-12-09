@@ -6,7 +6,7 @@ import { ProductI } from '@/api/home-management/entities/interfaces/home-managem
 import {
   CreateProductDto,
   GetProductDto,
-} from '@/api/entities/dtos/home-management/product.dto';
+} from '@/api/home-management/entities/dtos/product.dto';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { BaseRepository } from '@/common/repository/base-repository';

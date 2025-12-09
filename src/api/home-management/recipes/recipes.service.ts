@@ -2,7 +2,7 @@ import {
   CreateIngredientDto,
   CreateRecipeDto,
   CreateStepDto,
-} from '@/api/entities/dtos/home-management/recipe.dto';
+} from '@/api/home-management/entities/dtos/recipe.dto';
 import { SuccessCodes } from '@/api/entities/enums/response-codes.enum';
 import { SearchCriteriaI } from '@/api/entities/interfaces/api.entity';
 import {

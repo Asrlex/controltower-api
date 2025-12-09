@@ -27,7 +27,7 @@ import { TagService } from './tags.service';
 import {
   CreateItemTagDto,
   CreateTagDto,
-} from '@/api/entities/dtos/home-management/tag.dto';
+} from '@/api/home-management/entities/dtos/tag.dto';
 import {
   SuccessCodes,
   ErrorCodes,

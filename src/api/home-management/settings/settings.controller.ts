@@ -13,7 +13,7 @@ import {
 import { SettingService } from './settings.service';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { dtoValidator, formatResponse } from '@/common/utils/utils.api';
-import { CreateSettingsDto } from '@/api/entities/dtos/home-management/settings.dto';
+import { CreateSettingsDto } from '@/api/home-management/entities/dtos/settings.dto';
 import {
   SuccessCodes,
   ErrorCodes,

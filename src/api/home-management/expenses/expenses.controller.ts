@@ -22,7 +22,7 @@ import { formatResponse } from '@/common/utils/utils.api';
 import { ValidatePaginationPipe } from '@/common/pipes/pagination.pipe';
 import { ValidateSearchCriteriaPipe } from '@/common/pipes/search.pipe';
 import { SearchCriteriaI } from '@/api/entities/interfaces/api.entity';
-import { CreateExpenseDto } from '@/api/entities/dtos/home-management/expense.dto';
+import { CreateExpenseDto } from '@/api/home-management/entities/dtos/expense.dto';
 import { ExpenseService } from './expenses.service';
 import {
   SuccessCodes,

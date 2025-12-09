@@ -9,7 +9,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { CreateUserDto } from '../entities/dtos/home-management/user.dto';
+import { CreateUserDto } from '../home-management/entities/dtos/user.dto';
 import { formatResponse } from '../../common/utils/utils.api';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { GlobalApiKeyGuard } from './guards/global-api-key.guard';

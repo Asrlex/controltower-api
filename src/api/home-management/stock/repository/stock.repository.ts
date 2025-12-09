@@ -9,7 +9,7 @@ import {
 import {
   CreateStockProductDto,
   GetStockProductDto,
-} from '@/api/entities/dtos/home-management/stock-product.dto';
+} from '@/api/home-management/entities/dtos/stock-product.dto';
 import { ShoppingListProductRepository } from '../../shopping-list/repository/shopping-list.repository.interface';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';

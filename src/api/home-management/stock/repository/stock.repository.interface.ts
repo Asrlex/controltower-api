@@ -3,7 +3,7 @@ import {
   ShoppingListProductI,
   StockProductI,
 } from '@/api/home-management/entities/interfaces/home-management.entity';
-import { CreateStockProductDto } from '@/api/entities/dtos/home-management/stock-product.dto';
+import { CreateStockProductDto } from '@/api/home-management/entities/dtos/stock-product.dto';
 
 export const STOCK_PRODUCT_REPOSITORY = 'STOCK_PRODUCT_REPOSITORY';
 

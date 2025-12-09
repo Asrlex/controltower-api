@@ -1,4 +1,4 @@
-import { CreateShopDto } from '@/api/entities/dtos/home-management/shop.dto';
+import { CreateShopDto } from '@/api/home-management/entities/dtos/shop.dto';
 import { SuccessCodes } from '@/api/entities/enums/response-codes.enum';
 import { SearchCriteriaI } from '@/api/entities/interfaces/api.entity';
 import { ShopI } from '@/api/home-management/entities/interfaces/home-management.entity';

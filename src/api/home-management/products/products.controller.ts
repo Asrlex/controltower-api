@@ -24,7 +24,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { ProductService } from './products.service';
-import { CreateProductDto } from '@/api/entities/dtos/home-management/product.dto';
+import { CreateProductDto } from '@/api/home-management/entities/dtos/product.dto';
 import {
   SuccessCodes,
   ErrorCodes,

@@ -1,5 +1,5 @@
 import { GenericRepository } from '@/common/repository/generic-repository.interface';
-import { CreateExpenseDto } from '@/api/entities/dtos/home-management/expense.dto';
+import { CreateExpenseDto } from '@/api/home-management/entities/dtos/expense.dto';
 import {
   ExpenseCategoryI,
   ExpenseI,

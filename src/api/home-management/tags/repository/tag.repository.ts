@@ -7,7 +7,7 @@ import { TagI } from '@/api/home-management/entities/interfaces/home-management.
 import {
   CreateTagDto,
   GetTagDto,
-} from '@/api/entities/dtos/home-management/tag.dto';
+} from '@/api/home-management/entities/dtos/tag.dto';
 import { BaseRepository } from '@/common/repository/base-repository';
 import { tagsQueries } from '@/db/queries/tags.queries';
 

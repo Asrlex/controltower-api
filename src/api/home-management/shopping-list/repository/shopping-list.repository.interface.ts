@@ -1,5 +1,5 @@
 import { GenericRepository } from '@/common/repository/generic-repository.interface';
-import { CreateShoppingListProductDto } from '@/api/entities/dtos/home-management/shopping-list.dto';
+import { CreateShoppingListProductDto } from '@/api/home-management/entities/dtos/shopping-list.dto';
 import {
   ShoppingListProductI,
   StockProductI,

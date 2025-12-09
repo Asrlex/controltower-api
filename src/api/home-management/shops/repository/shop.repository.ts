@@ -5,7 +5,7 @@ import { plainToInstance } from 'class-transformer';
 import {
   CreateShopDto,
   GetShopDto,
-} from '@/api/entities/dtos/home-management/shop.dto';
+} from '@/api/home-management/entities/dtos/shop.dto';
 import { ShopI } from '@/api/home-management/entities/interfaces/home-management.entity';
 import { BaseRepository } from '@/common/repository/base-repository';
 import { IShopRepository } from './shop.repository.interface';

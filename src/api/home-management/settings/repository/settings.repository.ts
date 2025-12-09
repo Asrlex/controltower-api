@@ -6,7 +6,7 @@ import { SettingsI } from '@/api/home-management/entities/interfaces/home-manage
 import {
   CreateSettingsDto,
   GetSettingsDto,
-} from '@/api/entities/dtos/home-management/settings.dto';
+} from '@/api/home-management/entities/dtos/settings.dto';
 import { BaseRepository } from '@/common/repository/base-repository';
 import { SettingsRepository } from './settings.repository.interface';
 import { settingsQueries } from '@/db/queries/settings.queries';

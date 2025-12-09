@@ -1,4 +1,4 @@
-import { CreateTagDto } from '@/api/entities/dtos/home-management/tag.dto';
+import { CreateTagDto } from '@/api/home-management/entities/dtos/tag.dto';
 import { SuccessCodes } from '@/api/entities/enums/response-codes.enum';
 import { SearchCriteriaI } from '@/api/entities/interfaces/api.entity';
 import { TagI } from '@/api/home-management/entities/interfaces/home-management.entity';

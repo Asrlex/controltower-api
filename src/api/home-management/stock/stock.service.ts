@@ -1,4 +1,4 @@
-import { CreateStockProductDto } from '@/api/entities/dtos/home-management/stock-product.dto';
+import { CreateStockProductDto } from '@/api/home-management/entities/dtos/stock-product.dto';
 import { SuccessCodes } from '@/api/entities/enums/response-codes.enum';
 import { SearchCriteriaI } from '@/api/entities/interfaces/api.entity';
 import {

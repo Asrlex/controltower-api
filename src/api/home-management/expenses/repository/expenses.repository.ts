@@ -10,7 +10,7 @@ import { SortI } from '@/api/entities/interfaces/api.entity';
 import {
   CreateExpenseDto,
   GetExpenseDto,
-} from '@/api/entities/dtos/home-management/expense.dto';
+} from '@/api/home-management/entities/dtos/expense.dto';
 import { ExpenseRepository } from './expenses.repository.interface';
 import { BaseRepository } from '@/common/repository/base-repository';
 import { expensesQueries } from '@/db/queries/expenses.queries';

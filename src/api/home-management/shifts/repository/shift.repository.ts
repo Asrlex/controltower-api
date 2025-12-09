@@ -15,7 +15,7 @@ import {
   CreateShiftCheckinDto,
   GetAbsenceDto,
   GetShiftCheckinDto,
-} from '@/api/entities/dtos/home-management/shift.dto';
+} from '@/api/home-management/entities/dtos/shift.dto';
 
 export class ShiftRepositoryImplementation
   extends BaseRepository

@@ -29,7 +29,7 @@ import {
   CreateCarTaskDto,
   CreateHouseTaskDto,
   CreateTaskDto,
-} from '@/api/entities/dtos/home-management/task.dto';
+} from '@/api/home-management/entities/dtos/task.dto';
 import {
   SuccessCodes,
   ErrorCodes,

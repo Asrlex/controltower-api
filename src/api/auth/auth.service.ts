@@ -8,7 +8,7 @@ import {
   LoggedUserI,
   UserI,
 } from '../home-management/entities/interfaces/home-management.entity';
-import { CreateUserDto } from '../entities/dtos/home-management/user.dto';
+import { CreateUserDto } from '../home-management/entities/dtos/user.dto';
 import { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';

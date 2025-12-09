@@ -14,7 +14,7 @@ import {
   GetCarTaskDto,
   GetHouseTaskDto,
   GetTaskDto,
-} from '@/api/entities/dtos/home-management/task.dto';
+} from '@/api/home-management/entities/dtos/task.dto';
 import { BaseRepository } from '@/common/repository/base-repository';
 import { TaskRepository } from './task.repository.interface';
 import { tasksQueries } from '@/db/queries/tasks.queries';

@@ -27,7 +27,7 @@ import {
   CreateIngredientDto,
   CreateRecipeDto,
   CreateStepDto,
-} from '@/api/entities/dtos/home-management/recipe.dto';
+} from '@/api/home-management/entities/dtos/recipe.dto';
 import { RecipeService } from './recipes.service';
 import {
   SuccessCodes,

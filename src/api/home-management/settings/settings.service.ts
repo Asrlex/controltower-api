@@ -1,4 +1,4 @@
-import { CreateSettingsDto } from '@/api/entities/dtos/home-management/settings.dto';
+import { CreateSettingsDto } from '@/api/home-management/entities/dtos/settings.dto';
 import { SuccessCodes } from '@/api/entities/enums/response-codes.enum';
 import { SettingsI } from '@/api/home-management/entities/interfaces/home-management.entity';
 import { Inject, Injectable } from '@nestjs/common';

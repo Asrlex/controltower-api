@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
-import { CarTaskTypes } from '../../enums/dto.enum';
+import { CarTaskTypes } from '../../../entities/enums/dto.enum';
 
 export class CreateTaskDto {
   @ApiProperty({

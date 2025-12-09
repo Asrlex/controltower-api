@@ -1,4 +1,4 @@
-import { CreateUserDto } from '@/api/entities/dtos/home-management/user.dto';
+import { CreateUserDto } from '@/api/home-management/entities/dtos/user.dto';
 import { UserI } from '@/api/home-management/entities/interfaces/home-management.entity';
 import { GenericRepository } from '@/common/repository/generic-repository.interface';
 

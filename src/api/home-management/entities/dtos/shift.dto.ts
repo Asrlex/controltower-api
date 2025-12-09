@@ -1,5 +1,5 @@
 import { IsNumber, IsString } from 'class-validator';
-import { AbsenceTypes, ShiftTypes } from '../../enums/dto.enum';
+import { AbsenceTypes, ShiftTypes } from '../../../entities/enums/dto.enum';
 
 export class GetShiftCheckinDto {
   @IsNumber()

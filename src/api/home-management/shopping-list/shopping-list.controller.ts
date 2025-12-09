@@ -24,7 +24,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { ShoppingListProductService } from './shopping-list.service';
-import { CreateShoppingListProductDto } from '@/api/entities/dtos/home-management/shopping-list.dto';
+import { CreateShoppingListProductDto } from '@/api/home-management/entities/dtos/shopping-list.dto';
 import {
   SuccessCodes,
   ErrorCodes,

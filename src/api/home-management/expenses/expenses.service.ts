@@ -1,4 +1,4 @@
-import { CreateExpenseDto } from '@/api/entities/dtos/home-management/expense.dto';
+import { CreateExpenseDto } from '@/api/home-management/entities/dtos/expense.dto';
 import { SuccessCodes } from '@/api/entities/enums/response-codes.enum';
 import { SearchCriteriaI } from '@/api/entities/interfaces/api.entity';
 import {

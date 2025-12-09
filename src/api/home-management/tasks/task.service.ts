@@ -2,7 +2,7 @@ import {
   CreateCarTaskDto,
   CreateHouseTaskDto,
   CreateTaskDto,
-} from '@/api/entities/dtos/home-management/task.dto';
+} from '@/api/home-management/entities/dtos/task.dto';
 import { SuccessCodes } from '@/api/entities/enums/response-codes.enum';
 import { SearchCriteriaI } from '@/api/entities/interfaces/api.entity';
 import {

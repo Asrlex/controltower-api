@@ -1,7 +1,7 @@
 import {
   CreateAbsenceDto,
   CreateShiftCheckinDto,
-} from '@/api/entities/dtos/home-management/shift.dto';
+} from '@/api/home-management/entities/dtos/shift.dto';
 import {
   AbsenceI,
   ShiftI,

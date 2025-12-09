@@ -7,7 +7,7 @@ import {
   CreateCarTaskDto,
   CreateHouseTaskDto,
   CreateTaskDto,
-} from '@/api/entities/dtos/home-management/task.dto';
+} from '@/api/home-management/entities/dtos/task.dto';
 import { GenericRepository } from '@/common/repository/generic-repository.interface';
 
 export const TASK_REPOSITORY = 'TASK_REPOSITORY';

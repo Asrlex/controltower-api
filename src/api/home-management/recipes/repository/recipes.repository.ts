@@ -7,7 +7,7 @@ import {
   CreateRecipeDto,
   CreateStepDto,
   GetRecipeDto,
-} from '@/api/entities/dtos/home-management/recipe.dto';
+} from '@/api/home-management/entities/dtos/recipe.dto';
 import {
   RecipeDetailI,
   RecipeIngredientI,

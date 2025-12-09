@@ -1,6 +1,6 @@
 import { GenericRepository } from '@/common/repository/generic-repository.interface';
 import { ProductI } from '@/api/home-management/entities/interfaces/home-management.entity';
-import { CreateProductDto } from '@/api/entities/dtos/home-management/product.dto';
+import { CreateProductDto } from '@/api/home-management/entities/dtos/product.dto';
 
 export const PRODUCT_REPOSITORY = 'PRODUCT_REPOSITORY';
 

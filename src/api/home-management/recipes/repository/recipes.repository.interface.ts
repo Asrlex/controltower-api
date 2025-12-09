@@ -9,7 +9,7 @@ import {
   CreateIngredientDto,
   CreateRecipeDto,
   CreateStepDto,
-} from '@/api/entities/dtos/home-management/recipe.dto';
+} from '@/api/home-management/entities/dtos/recipe.dto';
 
 export const RECIPE_REPOSITORY = 'RECIPE_REPOSITORY';
 

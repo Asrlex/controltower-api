@@ -23,7 +23,7 @@ async function bootstrap() {
   app.use(bodyParser.urlencoded({ limit: '1mb', extended: true }));
 
   app.enableCors({
-    origin: 'http://localhost:5174',
+    origin: ['http://localhost:5174', 'http://homemgt-frontend'],
     methods: 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type,Authorization,X-api-key',
   });
@@ -34,11 +34,20 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT');
+  const environment = configService.get<string>('NODE_ENV');
 
   await app
     .listen(port)
     .then(() =>
-      app.get(Logger).log(`Server running on http://localhost:${port}`),
+      app
+        .get(Logger)
+        .log(
+          `Server running on ${
+            environment === 'production'
+              ? 'http://homemgt-backend'
+              : `http://localhost:${port}`
+          }`,
+        ),
     )
     .catch((error) => app.get(Logger).error('Error starting server', error));
 }

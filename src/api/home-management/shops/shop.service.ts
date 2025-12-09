@@ -1,18 +1,18 @@
-import { CreateStoreDto } from '@/api/entities/dtos/home-management/store.dto';
+import { CreateShopDto } from '@/api/entities/dtos/home-management/shop.dto';
 import { SuccessCodes } from '@/api/entities/enums/response-codes.enum';
 import { SearchCriteriaI } from '@/api/entities/interfaces/api.entity';
-import { StoreI } from '@/api/entities/interfaces/home-management.entity';
+import { ShopI } from '@/api/home-management/entities/interfaces/home-management.entity';
 import { Inject, Injectable } from '@nestjs/common';
 import {
-  STORE_REPOSITORY,
-  StoreRepository,
-} from './repository/store.repository.interface';
+  SHOP_REPOSITORY,
+  IShopRepository,
+} from './repository/shop.repository.interface';
 
 @Injectable()
-export class StoreService {
+export class ShopService {
   constructor(
-    @Inject(STORE_REPOSITORY)
-    private readonly storeRepository: StoreRepository,
+    @Inject(SHOP_REPOSITORY)
+    private readonly shopRepository: IShopRepository,
   ) {}
 
   /**
@@ -22,7 +22,7 @@ export class StoreService {
   async status() {
     return {
       statusCode: SuccessCodes.Ok,
-      message: 'Store endpoint is working',
+      message: 'Shops endpoint is working',
     };
   }
 
@@ -30,26 +30,26 @@ export class StoreService {
    * Método para obtener todos los tiendas
    * @returns string - todos los tiendas
    */
-  async findAllStores(): Promise<{
-    entities: StoreI[];
+  async findAllShops(): Promise<{
+    entities: ShopI[];
     total: number;
   }> {
-    return await this.storeRepository.findAll();
+    return await this.shopRepository.findAll();
   }
 
   /**
    * Método para obtener lista de tiendas filtrados
    * @returns string - lista de tiendas filtrados
    */
-  async getStores(
+  async getShops(
     page: number,
     limit: number,
     searchCriteria: SearchCriteriaI,
   ): Promise<{
-    entities: StoreI[];
+    entities: ShopI[];
     total: number;
   }> {
-    return await this.storeRepository.find(page, limit, searchCriteria);
+    return await this.shopRepository.find(page, limit, searchCriteria);
   }
 
   /**
@@ -57,16 +57,16 @@ export class StoreService {
    * @param id - id de la tienda
    * @returns string
    */
-  async getStoreById(id: string): Promise<StoreI> {
-    return await this.storeRepository.findById(id);
+  async getShopById(id: string): Promise<ShopI> {
+    return await this.shopRepository.findById(id);
   }
 
   /**
    * Metodo para crear un nuevo tienda
    * @returns string - tienda creado
    */
-  async createStore(dto: CreateStoreDto): Promise<StoreI> {
-    return await this.storeRepository.create(dto);
+  async createShop(dto: CreateShopDto): Promise<ShopI> {
+    return await this.shopRepository.create(dto);
   }
 
   /**
@@ -75,8 +75,8 @@ export class StoreService {
    * @param customer - tienda
    * @returns string - tienda actualizado
    */
-  async updateStore(id: string, customer: CreateStoreDto) {
-    return await this.storeRepository.modify(id, customer);
+  async updateShop(id: string, customer: CreateShopDto) {
+    return await this.shopRepository.modify(id, customer);
   }
 
   /**
@@ -84,7 +84,7 @@ export class StoreService {
    * @param id - id de la tienda
    * @returns null - tienda eliminado
    */
-  async deleteStore(id: string) {
-    await this.storeRepository.delete(id);
+  async deleteShop(id: string) {
+    await this.shopRepository.delete(id);
   }
 }

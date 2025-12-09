@@ -6,7 +6,7 @@ import {
   CreateUserDto,
   GetUserDto,
 } from '@/api/entities/dtos/home-management/user.dto';
-import { UserI } from '@/api/entities/interfaces/home-management.entity';
+import { UserI } from '@/api/home-management/entities/interfaces/home-management.entity';
 import { UserRepository } from './user.repository.interface';
 import { usersQueries } from '@/db/queries/users.queries';
 

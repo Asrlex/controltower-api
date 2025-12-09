@@ -7,7 +7,7 @@ import {
 import {
   LoggedUserI,
   UserI,
-} from '../entities/interfaces/home-management.entity';
+} from '../home-management/entities/interfaces/home-management.entity';
 import { CreateUserDto } from '../entities/dtos/home-management/user.dto';
 import { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';

@@ -4,7 +4,7 @@ import { SearchCriteriaI } from '@/api/entities/interfaces/api.entity';
 import {
   ExpenseCategoryI,
   ExpenseI,
-} from '@/api/entities/interfaces/home-management.entity';
+} from '@/api/home-management/entities/interfaces/home-management.entity';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   EXPENSE_REPOSITORY,

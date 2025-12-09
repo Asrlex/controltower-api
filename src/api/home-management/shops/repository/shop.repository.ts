@@ -3,17 +3,17 @@ import { DatabaseConnection } from 'src/db/database.connection';
 import { SortI } from 'src/api/entities/interfaces/api.entity';
 import { plainToInstance } from 'class-transformer';
 import {
-  CreateStoreDto,
-  GetStoreDto,
-} from '@/api/entities/dtos/home-management/store.dto';
-import { StoreI } from '@/api/entities/interfaces/home-management.entity';
+  CreateShopDto,
+  GetShopDto,
+} from '@/api/entities/dtos/home-management/shop.dto';
+import { ShopI } from '@/api/home-management/entities/interfaces/home-management.entity';
 import { BaseRepository } from '@/common/repository/base-repository';
-import { StoreRepository } from './store.repository.interface';
-import { storesQueries } from '@/db/queries/shops.queries';
+import { IShopRepository } from './shop.repository.interface';
+import { shopsQueries } from '@/db/queries/shops.queries';
 
-export class StoreRepositoryImplementation
+export class ShopRepositoryImplementation
   extends BaseRepository
-  implements StoreRepository
+  implements IShopRepository
 {
   constructor(
     @Inject('HOME_MANAGEMENT_CONNECTION')
@@ -28,12 +28,12 @@ export class StoreRepositoryImplementation
    * @returns string - todos las tiendas
    */
   async findAll(): Promise<{
-    entities: StoreI[];
+    entities: ShopI[];
     total: number;
   }> {
-    const sql = storesQueries.findAll;
+    const sql = shopsQueries.findAll;
     const result = await this.homeManagementDbConnection.execute(sql);
-    const entities: StoreI[] = this.resultToStore(result);
+    const entities: ShopI[] = this.resultToShop(result);
     return {
       entities,
       total: result[0] ? parseInt(result[0].total, 10) : 0,
@@ -48,7 +48,7 @@ export class StoreRepositoryImplementation
     page: number,
     limit: number,
     searchCriteria: any,
-  ): Promise<{ entities: StoreI[]; total: number }> {
+  ): Promise<{ entities: ShopI[]; total: number }> {
     let filters = '';
     let sort: SortI = { field: 'customerName', order: 'DESC' };
     if (searchCriteria) {
@@ -61,14 +61,14 @@ export class StoreRepositoryImplementation
     }
     const offset: number = page * limit + 1;
     limit = offset + parseInt(limit.toString(), 10) - 1;
-    const sql = storesQueries.find
+    const sql = shopsQueries.find
       .replaceAll('@DynamicWhereClause', filters)
       .replaceAll('@DynamicOrderByField', `${sort.field}`)
       .replaceAll('@DynamicOrderByDirection', `${sort.order}`)
       .replace('@start', offset.toString())
       .replace('@end', limit.toString());
     const result = await this.homeManagementDbConnection.execute(sql);
-    const entities: StoreI[] = this.resultToStore(result);
+    const entities: ShopI[] = this.resultToShop(result);
     return {
       entities,
       total: result[0] ? parseInt(result[0].total, 10) : 0,
@@ -80,10 +80,10 @@ export class StoreRepositoryImplementation
    * @param id - id del tiendas
    * @returns string
    */
-  async findById(id: string): Promise<StoreI | null> {
-    const sql = storesQueries.findByID.replace('@id', id);
+  async findById(id: string): Promise<ShopI | null> {
+    const sql = shopsQueries.findByID.replace('@id', id);
     const result = await this.homeManagementDbConnection.execute(sql);
-    const entities: StoreI[] = this.resultToStore(result);
+    const entities: ShopI[] = this.resultToShop(result);
     return entities.length > 0 ? entities[0] : null;
   }
 
@@ -91,18 +91,18 @@ export class StoreRepositoryImplementation
    * Metodo para crear un nuevo tiendas
    * @returns string - tiendas creado
    */
-  async create(dto: CreateStoreDto): Promise<StoreI> {
+  async create(dto: CreateShopDto): Promise<ShopI> {
     dto = this.prepareDTO(dto);
-    const sqlProduct = storesQueries.create.replace(
+    const sqlProduct = shopsQueries.create.replace(
       '@InsertValues',
-      `'${dto.storeName}'`,
+      `'${dto.shopName}'`,
     );
     const responseProduct =
       await this.homeManagementDbConnection.execute(sqlProduct);
-    const storeID = responseProduct[0].id;
+    const shopID = responseProduct[0].id;
 
-    await this.saveLog('insert', 'store', `Created store ${storeID}`);
-    return this.findById(storeID);
+    await this.saveLog('insert', 'shop', `Created shop ${shopID}`);
+    return this.findById(shopID);
   }
 
   /**
@@ -113,19 +113,19 @@ export class StoreRepositoryImplementation
    * @param product - tiendas
    * @returns string - tiendas actualizado
    */
-  async modify(id: string, dto: CreateStoreDto): Promise<StoreI> {
+  async modify(id: string, dto: CreateShopDto): Promise<ShopI> {
     const originalProduct = await this.findById(id);
     if (!originalProduct) {
       throw new NotFoundException('Product not found');
     }
     dto = this.prepareDTO(dto);
 
-    const sqlProduct = storesQueries.update
-      .replace('@name', dto.storeName)
+    const sqlProduct = shopsQueries.update
+      .replace('@name', dto.shopName)
       .replace('@id', id);
     await this.homeManagementDbConnection.execute(sqlProduct);
 
-    await this.saveLog('update', 'store', `Modified store ${id}`);
+    await this.saveLog('update', 'shop', `Modified shop ${id}`);
     return this.findById(id);
   }
 
@@ -139,9 +139,9 @@ export class StoreRepositoryImplementation
     if (!originalProduct) {
       throw new NotFoundException('Product not found');
     }
-    const sql = storesQueries.delete.replace('@id', id);
+    const sql = shopsQueries.delete.replace('@id', id);
     await this.homeManagementDbConnection.execute(sql);
-    await this.saveLog('delete', 'store', `Deleted store ${id}`);
+    await this.saveLog('delete', 'shop', `Deleted shop ${id}`);
   }
 
   /**
@@ -149,8 +149,8 @@ export class StoreRepositoryImplementation
    * @param dto - DTO
    * @returns DTO
    */
-  private prepareDTO(dto: CreateStoreDto): CreateStoreDto {
-    dto = plainToInstance(CreateStoreDto, dto, {
+  private prepareDTO(dto: CreateShopDto): CreateShopDto {
+    dto = plainToInstance(CreateShopDto, dto, {
       exposeDefaultValues: true,
     });
     return dto;
@@ -161,21 +161,21 @@ export class StoreRepositoryImplementation
    * @param result - resultado de la consulta
    * @returns array de tiendas
    */
-  private resultToStore(result: GetStoreDto[]): StoreI[] {
-    const mappedStores: Map<number, StoreI> = new Map();
-    result.forEach((record: GetStoreDto) => {
-      let store: StoreI;
-      if (mappedStores.has(record.storeID)) {
-        store = mappedStores.get(record.storeID);
+  private resultToShop(result: GetShopDto[]): ShopI[] {
+    const mappedShops: Map<number, ShopI> = new Map();
+    result.forEach((record: GetShopDto) => {
+      let shop: ShopI;
+      if (mappedShops.has(record.shopID)) {
+        shop = mappedShops.get(record.shopID);
       } else {
-        store = {
-          storeID: record.storeID,
-          storeName: record.storeName,
+        shop = {
+          shopID: record.shopID,
+          shopName: record.shopName,
         };
-        mappedStores.set(record.storeID, store);
+        mappedShops.set(record.shopID, shop);
       }
     });
-    return Array.from(mappedStores.values());
+    return Array.from(mappedShops.values());
   }
 
   /**
@@ -187,7 +187,7 @@ export class StoreRepositoryImplementation
   private addSearchToFilters(filters: string, search: string): string {
     if (search) {
       filters += ` 
-        AND (storeName LIKE '%${search}%')
+        AND (shopName LIKE '%${search}%')
         `;
     }
     return filters;

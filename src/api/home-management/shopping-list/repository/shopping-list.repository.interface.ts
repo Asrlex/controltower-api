@@ -3,17 +3,16 @@ import { CreateShoppingListProductDto } from '@/api/entities/dtos/home-managemen
 import {
   ShoppingListProductI,
   StockProductI,
-} from '@/api/entities/interfaces/home-management.entity';
+} from '@/api/home-management/entities/interfaces/home-management.entity';
 
 export const SHOPPING_LIST_PRODUCT_REPOSITORY =
   'SHOPPING_LIST_PRODUCT_REPOSITORY';
 
-export interface ShoppingListProductRepository
-  extends GenericRepository<
-    ShoppingListProductI,
-    string,
-    CreateShoppingListProductDto
-  > {
+export interface ShoppingListProductRepository extends GenericRepository<
+  ShoppingListProductI,
+  string,
+  CreateShoppingListProductDto
+> {
   buyProduct(productId: string): Promise<StockProductI>;
   modifyAmount(productId: string, amount: number): Promise<void>;
 }

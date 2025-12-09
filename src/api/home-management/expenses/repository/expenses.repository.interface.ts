@@ -3,12 +3,15 @@ import { CreateExpenseDto } from '@/api/entities/dtos/home-management/expense.dt
 import {
   ExpenseCategoryI,
   ExpenseI,
-} from '@/api/entities/interfaces/home-management.entity';
+} from '@/api/home-management/entities/interfaces/home-management.entity';
 
 export const EXPENSE_REPOSITORY = 'EXPENSE_REPOSITORY';
 
-export interface ExpenseRepository
-  extends GenericRepository<ExpenseI, string, CreateExpenseDto> {
+export interface ExpenseRepository extends GenericRepository<
+  ExpenseI,
+  string,
+  CreateExpenseDto
+> {
   findAllCategories(): Promise<ExpenseCategoryI[]>;
   findByMonth(month: string): Promise<ExpenseI[]>;
 }

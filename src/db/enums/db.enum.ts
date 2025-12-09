@@ -11,7 +11,7 @@ export enum DBEnum {
 export enum TableNames {
   Products = 'products',
   Pantry = 'pantry',
-  Stores = 'store',
+  Shops = 'store',
   ShoppingList = 'shopping_list',
   ProductTags = 'product_tag',
   Tags = 'tag',

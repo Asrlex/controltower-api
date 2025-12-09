@@ -23,40 +23,40 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { StoreService } from './store.service';
-import { CreateStoreDto } from '@/api/entities/dtos/home-management/store.dto';
+import { ShopService } from './shop.service';
+import { CreateShopDto } from '@/api/entities/dtos/home-management/shop.dto';
 import {
   SuccessCodes,
   ErrorCodes,
 } from '@/api/entities/enums/response-codes.enum';
 import { CompositeAuthGuard } from '@/api/auth/guards/composite-auth.guard';
 
-@ApiTags('Stores')
+@ApiTags('Shops')
 @Controller()
 @UseGuards(CompositeAuthGuard)
-export class StoreController {
+export class ShopController {
   constructor(
     private readonly logger: Logger,
-    private readonly storeService: StoreService,
+    private readonly shopService: ShopService,
   ) {}
 
   @Get('status')
   status() {
-    return this.storeService.status();
+    return this.shopService.status();
   }
 
   @Get('all')
   @ApiOperation({ summary: 'Get all products' })
   @ApiResponse({
     status: SuccessCodes.Ok,
-    description: 'Store(s) retrieved successfully',
+    description: 'Shop(s) retrieved successfully',
   })
   @ApiResponse({ status: ErrorCodes.BadRequest, description: 'Bad Request' })
   @ApiResponse({ status: ErrorCodes.Unauthorized, description: 'Unauthorized' })
   @ApiResponse({ status: ErrorCodes.Forbidden, description: 'Forbidden' })
   @ApiResponse({ status: ErrorCodes.NotFound, description: 'Not Found' })
-  async findAllStores() {
-    const response = await this.storeService.findAllStores();
+  async findAllShops() {
+    const response = await this.shopService.findAllShops();
     const formattedResponse = formatResponse(response.entities, {
       total: response.total,
     });
@@ -65,19 +65,19 @@ export class StoreController {
 
   @Get('id/:id')
   @ApiOperation({
-    summary: 'Get a store by ID',
+    summary: 'Get a shop by ID',
   })
-  @ApiParam({ name: 'id', description: 'Store ID' })
+  @ApiParam({ name: 'id', description: 'Shop ID' })
   @ApiResponse({
     status: SuccessCodes.Ok,
-    description: 'Store(s) retrieved successfully',
+    description: 'Shop(s) retrieved successfully',
   })
   @ApiResponse({ status: ErrorCodes.BadRequest, description: 'Bad Request' })
   @ApiResponse({ status: ErrorCodes.Unauthorized, description: 'Unauthorized' })
   @ApiResponse({ status: ErrorCodes.Forbidden, description: 'Forbidden' })
   @ApiResponse({ status: ErrorCodes.NotFound, description: 'Not Found' })
-  async getStoreById(@Param('id') id: string) {
-    const response = await this.storeService.getStoreById(id);
+  async getShopById(@Param('id') id: string) {
+    const response = await this.shopService.getShopById(id);
     const formattedResponse = formatResponse(response, { id });
     return formattedResponse;
   }
@@ -95,13 +95,13 @@ export class StoreController {
   })
   @ApiResponse({
     status: SuccessCodes.Ok,
-    description: 'Store(s) retrieved successfully',
+    description: 'Shop(s) retrieved successfully',
   })
   @ApiResponse({ status: ErrorCodes.BadRequest, description: 'Bad Request' })
   @ApiResponse({ status: ErrorCodes.Unauthorized, description: 'Unauthorized' })
   @ApiResponse({ status: ErrorCodes.Forbidden, description: 'Forbidden' })
   @ApiResponse({ status: ErrorCodes.NotFound, description: 'Not Found' })
-  async getStores(
+  async getShops(
     @Query('page', new ValidatePaginationPipe()) page: number = 0,
     @Query('limit', new ValidatePaginationPipe()) limit: number = 50,
     @Query('searchCriteria', new ValidateSearchCriteriaPipe())
@@ -110,7 +110,7 @@ export class StoreController {
     const searchCriteriaObj: SearchCriteriaI = JSON.parse(
       decodeURIComponent(searchCriteria),
     );
-    const response = await this.storeService.getStores(
+    const response = await this.shopService.getShops(
       page,
       limit,
       searchCriteriaObj,
@@ -129,19 +129,19 @@ export class StoreController {
   @ApiOperation({
     summary: 'Create a new product',
   })
-  @ApiBody({ description: 'Store data', type: CreateStoreDto })
+  @ApiBody({ description: 'Shop data', type: CreateShopDto })
   @ApiResponse({
     status: SuccessCodes.Created,
-    description: 'Store created successfully',
+    description: 'Shop created successfully',
   })
   @ApiResponse({ status: ErrorCodes.BadRequest, description: 'Bad Request' })
   @ApiResponse({ status: ErrorCodes.Unauthorized, description: 'Unauthorized' })
   @ApiResponse({ status: ErrorCodes.Forbidden, description: 'Forbidden' })
   @ApiResponse({ status: ErrorCodes.NotFound, description: 'Not Found' })
-  async createStore(@Body() product: CreateStoreDto) {
-    const response = await this.storeService.createStore(product);
+  async createShop(@Body() product: CreateShopDto) {
+    const response = await this.shopService.createShop(product);
     const formattedResponse = formatResponse(response, {
-      id: response.storeID,
+      id: response.shopID,
     });
     return formattedResponse;
   }
@@ -151,18 +151,18 @@ export class StoreController {
   @ApiOperation({
     summary: 'Update an existing product',
   })
-  @ApiParam({ name: 'id', description: 'Store ID' })
-  @ApiBody({ description: 'Store data', type: CreateStoreDto })
+  @ApiParam({ name: 'id', description: 'Shop ID' })
+  @ApiBody({ description: 'Shop data', type: CreateShopDto })
   @ApiResponse({
     status: SuccessCodes.Ok,
-    description: 'Store updated successfully',
+    description: 'Shop updated successfully',
   })
   @ApiResponse({ status: ErrorCodes.BadRequest, description: 'Bad Request' })
   @ApiResponse({ status: ErrorCodes.Unauthorized, description: 'Unauthorized' })
   @ApiResponse({ status: ErrorCodes.Forbidden, description: 'Forbidden' })
   @ApiResponse({ status: ErrorCodes.NotFound, description: 'Not Found' })
-  async updateStore(@Param('id') id: string, @Body() product: CreateStoreDto) {
-    const response = await this.storeService.updateStore(id, product);
+  async updateShop(@Param('id') id: string, @Body() product: CreateShopDto) {
+    const response = await this.shopService.updateShop(id, product);
     const formattedResponse = formatResponse(response, { id });
     return formattedResponse;
   }
@@ -171,17 +171,17 @@ export class StoreController {
   @ApiOperation({
     summary: 'Delete an existing product',
   })
-  @ApiParam({ name: 'id', description: 'Store ID' })
+  @ApiParam({ name: 'id', description: 'Shop ID' })
   @ApiResponse({
     status: SuccessCodes.NoContent,
-    description: 'Store deleted successfully',
+    description: 'Shop deleted successfully',
   })
   @ApiResponse({ status: ErrorCodes.BadRequest, description: 'Bad Request' })
   @ApiResponse({ status: ErrorCodes.Unauthorized, description: 'Unauthorized' })
   @ApiResponse({ status: ErrorCodes.Forbidden, description: 'Forbidden' })
   @ApiResponse({ status: ErrorCodes.NotFound, description: 'Not Found' })
-  async deleteStore(@Param('id') id: string) {
-    await this.storeService.deleteStore(id);
+  async deleteShop(@Param('id') id: string) {
+    await this.shopService.deleteShop(id);
     const formattedResponse = formatResponse(null, { id });
     return formattedResponse;
   }

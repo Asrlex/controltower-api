@@ -13,8 +13,8 @@ const shoppingListSelectRoot = `
   p.unit as productUnit,
   p.last_bought_at as productDateLastBought,
   p.last_consumed_at as productDateLastConsumed,
-  s.id as storeID,
-  s.name as storeName,
+  s.id as shopID,
+  s.name as shopName,
   tg.id as tagID,
   tg.name as tagName,
   tg.type as tagType

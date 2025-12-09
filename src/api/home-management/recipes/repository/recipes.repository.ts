@@ -13,7 +13,7 @@ import {
   RecipeIngredientI,
   RecipeNameI,
   RecipeStepI,
-} from '@/api/entities/interfaces/home-management.entity';
+} from '@/api/home-management/entities/interfaces/home-management.entity';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { BaseRepository } from '@/common/repository/base-repository';

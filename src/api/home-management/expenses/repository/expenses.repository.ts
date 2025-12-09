@@ -5,7 +5,7 @@ import { Cache } from 'cache-manager';
 import {
   ExpenseCategoryI,
   ExpenseI,
-} from '@/api/entities/interfaces/home-management.entity';
+} from '@/api/home-management/entities/interfaces/home-management.entity';
 import { SortI } from '@/api/entities/interfaces/api.entity';
 import {
   CreateExpenseDto,

@@ -2,7 +2,7 @@ import {
   CarTaskI,
   HouseTaskI,
   TaskI,
-} from '@/api/entities/interfaces/home-management.entity';
+} from '@/api/home-management/entities/interfaces/home-management.entity';
 import {
   CreateCarTaskDto,
   CreateHouseTaskDto,
@@ -12,8 +12,11 @@ import { GenericRepository } from '@/common/repository/generic-repository.interf
 
 export const TASK_REPOSITORY = 'TASK_REPOSITORY';
 
-export interface TaskRepository
-  extends GenericRepository<TaskI, string, CreateTaskDto> {
+export interface TaskRepository extends GenericRepository<
+  TaskI,
+  string,
+  CreateTaskDto
+> {
   toggleCompletedTask(taskID: string, taskCompleted: boolean): Promise<TaskI>;
   findHouseTasks(
     page: number,

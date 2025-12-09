@@ -2,7 +2,7 @@
 import { Inject, Logger, NotFoundException } from '@nestjs/common';
 import { DatabaseConnection } from 'src/db/database.connection';
 import { plainToInstance } from 'class-transformer';
-import { SettingsI } from '@/api/entities/interfaces/home-management.entity';
+import { SettingsI } from '@/api/home-management/entities/interfaces/home-management.entity';
 import {
   CreateSettingsDto,
   GetSettingsDto,

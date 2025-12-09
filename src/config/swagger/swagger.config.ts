@@ -19,7 +19,8 @@ export function setupSwagger(app: INestApplication): void {
     .addTag('Stock Products')
     .addTag('Tasks')
     .addTag('Tags')
-    .addTag('Stores')
+    .addTag('Shops')
+    .addTag('Shifts')
     .addApiKey({ type: 'apiKey', name: 'x-api-key', in: 'header' }, 'api-key')
     .build();
 

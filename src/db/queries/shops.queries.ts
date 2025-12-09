@@ -5,39 +5,39 @@ import { TableNames } from '../enums/db.enum';
 // ******************************************************
 // SHOPS
 // ******************************************************
-const storesSelectRoot = `
-  s.id as storeID,
-  s.name as storeName
+const shopsSelectRoot = `
+  s.id as shopID,
+  s.name as shopName
 `;
-const KeyParam = 'storeID';
-export const storesQueries = {
+const KeyParam = 'shopID';
+export const shopsQueries = {
   findAll: formatTemplateString(baseQueries.FindAll, {
     KeyParam,
-    SelectFields: storesSelectRoot,
-    SelectTables: `${TableNames.Stores} s`,
+    SelectFields: shopsSelectRoot,
+    SelectTables: `${TableNames.Shops} s`,
   }),
   findByID: formatTemplateString(baseQueries.FindById, {
-    SelectFields: storesSelectRoot,
-    SelectTables: `${TableNames.Stores} s`,
+    SelectFields: shopsSelectRoot,
+    SelectTables: `${TableNames.Shops} s`,
     SelectId: `s.id`,
   }),
   find: formatTemplateString(baseQueries.Find, {
     KeyParam,
-    IncludedItemsTable: `${TableNames.Stores} s`,
-    SelectFields: `${storesSelectRoot}`,
-    FilterJoins: `fr.storeID = ai.storeID`,
+    IncludedItemsTable: `${TableNames.Shops} s`,
+    SelectFields: `${shopsSelectRoot}`,
+    FilterJoins: `fr.shopID = ai.shopID`,
   }),
   create: formatTemplateString(baseQueries.Create, {
-    InsertTable: TableNames.Stores,
+    InsertTable: TableNames.Shops,
     InsertFields: 'name',
     InsertOutput: 'RETURNING id',
   }),
   update: formatTemplateString(baseQueries.Update, {
-    UpdateTable: TableNames.Stores,
+    UpdateTable: TableNames.Shops,
     UpdateFields: `name = '@name'`,
     UpdateId: 'id',
   }),
   delete: formatTemplateString(baseQueries.HardDelete, {
-    DeleteTable: TableNames.Stores,
+    DeleteTable: TableNames.Shops,
   }),
 };

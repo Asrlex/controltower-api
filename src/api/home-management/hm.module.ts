@@ -4,7 +4,7 @@ import { ProductModule } from './products/products.module';
 import { ShoppingListProductModule } from './shopping-list/shopping-list.module';
 import { StockProductModule } from './stock/stock.module';
 import { RouterModule } from '@nestjs/core';
-import { StoreModule } from './stores/store.module';
+import { ShopModule } from './shops/shop.module';
 import { TaskModule } from './tasks/task.module';
 import { TagModule } from './tags/tags.module';
 import { RecipeModule } from './recipes/recipes.module';
@@ -20,8 +20,8 @@ import { ShoppingListProductRepositoryImplementation } from './shopping-list/rep
 import { SHOPPING_LIST_PRODUCT_REPOSITORY } from './shopping-list/repository/shopping-list.repository.interface';
 import { StockProductRepositoryImplementation } from './stock/repository/stock.repository';
 import { STOCK_PRODUCT_REPOSITORY } from './stock/repository/stock.repository.interface';
-import { StoreRepositoryImplementation } from './stores/repository/store.repository';
-import { STORE_REPOSITORY } from './stores/repository/store.repository.interface';
+import { ShopRepositoryImplementation } from './shops/repository/shop.repository';
+import { SHOP_REPOSITORY } from './shops/repository/shop.repository.interface';
 import { TagRepositoryImplementation } from './tags/repository/tag.repository';
 import { TAG_REPOSITORY } from './tags/repository/tag.repository.interface';
 import { TaskRepositoryImplementation } from './tasks/repository/task.repository';
@@ -34,7 +34,7 @@ import { ShiftModule } from './shifts/shift.module';
     ProductModule,
     forwardRef(() => StockProductModule),
     forwardRef(() => ShoppingListProductModule),
-    StoreModule,
+    ShopModule,
     TaskModule,
     TagModule,
     RecipeModule,
@@ -59,8 +59,8 @@ import { ShiftModule } from './shifts/shift.module';
             module: ShoppingListProductModule,
           },
           {
-            path: 'stores',
-            module: StoreModule,
+            path: 'shops',
+            module: ShopModule,
           },
           {
             path: 'tasks',
@@ -106,8 +106,8 @@ import { ShiftModule } from './shifts/shift.module';
       useClass: ShoppingListProductRepositoryImplementation,
     },
     {
-      provide: STORE_REPOSITORY,
-      useClass: StoreRepositoryImplementation,
+      provide: SHOP_REPOSITORY,
+      useClass: ShopRepositoryImplementation,
     },
     {
       provide: TASK_REPOSITORY,

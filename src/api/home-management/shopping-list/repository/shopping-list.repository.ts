@@ -5,7 +5,7 @@ import { plainToInstance } from 'class-transformer';
 import {
   ShoppingListProductI,
   StockProductI,
-} from '@/api/entities/interfaces/home-management.entity';
+} from '@/api/home-management/entities/interfaces/home-management.entity';
 import {
   CreateShoppingListProductDto,
   GetShoppingListProductDto,
@@ -121,7 +121,7 @@ export class ShoppingListProductRepositoryImplementation
     dto = this.prepareDTO(dto);
     const sqlProduct = shoppingListQueries.create.replace(
       '@InsertValues',
-      `'${dto.shoppingListAmount}', '${dto.shoppingListProductID}', '${dto.storeID}'`,
+      `'${dto.shoppingListAmount}', '${dto.shoppingListProductID}', '${dto.shopID}'`,
     );
 
     const responseProduct =
@@ -303,9 +303,9 @@ export class ShoppingListProductRepositoryImplementation
             productDateLastConsumed: record.productDateLastConsumed,
             tags: [],
           },
-          store: {
-            storeID: record.storeID,
-            storeName: record.storeName,
+          shop: {
+            shopID: record.shopID,
+            shopName: record.shopName,
           },
         };
         mappedProducts.set(record.shoppingListProductID, product);

@@ -8,7 +8,7 @@ import {
   AbsenceI,
   ShiftI,
   UserI,
-} from '@/api/entities/interfaces/home-management.entity';
+} from '@/api/home-management/entities/interfaces/home-management.entity';
 import { shiftQueries } from '@/db/queries/shifts.queries';
 import {
   CreateAbsenceDto,

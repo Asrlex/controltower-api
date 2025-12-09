@@ -1,7 +1,7 @@
 import { CreateTagDto } from '@/api/entities/dtos/home-management/tag.dto';
 import { SuccessCodes } from '@/api/entities/enums/response-codes.enum';
 import { SearchCriteriaI } from '@/api/entities/interfaces/api.entity';
-import { TagI } from '@/api/entities/interfaces/home-management.entity';
+import { TagI } from '@/api/home-management/entities/interfaces/home-management.entity';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   TAG_REPOSITORY,

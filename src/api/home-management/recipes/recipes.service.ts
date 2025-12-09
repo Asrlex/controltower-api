@@ -10,7 +10,7 @@ import {
   RecipeIngredientI,
   RecipeNameI,
   RecipeStepI,
-} from '@/api/entities/interfaces/home-management.entity';
+} from '@/api/home-management/entities/interfaces/home-management.entity';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   RECIPE_REPOSITORY,

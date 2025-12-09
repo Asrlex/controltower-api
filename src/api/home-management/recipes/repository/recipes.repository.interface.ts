@@ -4,7 +4,7 @@ import {
   RecipeIngredientI,
   RecipeNameI,
   RecipeStepI,
-} from '@/api/entities/interfaces/home-management.entity';
+} from '@/api/home-management/entities/interfaces/home-management.entity';
 import {
   CreateIngredientDto,
   CreateRecipeDto,
@@ -13,8 +13,11 @@ import {
 
 export const RECIPE_REPOSITORY = 'RECIPE_REPOSITORY';
 
-export interface RecipeRepository
-  extends GenericRepository<RecipeDetailI, string, CreateRecipeDto> {
+export interface RecipeRepository extends GenericRepository<
+  RecipeDetailI,
+  string,
+  CreateRecipeDto
+> {
   findIngredientByID(ingredientID: string): Promise<RecipeIngredientI>;
   findStepByID(stepID: string): Promise<RecipeStepI>;
   createIngredient(ingredient: CreateIngredientDto): Promise<RecipeIngredientI>;

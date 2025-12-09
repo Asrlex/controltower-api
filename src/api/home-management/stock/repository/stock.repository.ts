@@ -5,7 +5,7 @@ import { plainToInstance } from 'class-transformer';
 import {
   ShoppingListProductI,
   StockProductI,
-} from '@/api/entities/interfaces/home-management.entity';
+} from '@/api/home-management/entities/interfaces/home-management.entity';
 import {
   CreateStockProductDto,
   GetStockProductDto,
@@ -178,7 +178,7 @@ export class StockProductRepositoryImplementation
     const response = await this.shoppingListProductRepository.create({
       shoppingListProductID: originalProduct.product.productID,
       shoppingListAmount: originalProduct.stockProductAmount,
-      storeID: '2',
+      shopID: '2',
     });
     await this.saveLog(
       'update',

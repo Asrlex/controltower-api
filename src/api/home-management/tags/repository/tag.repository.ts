@@ -3,7 +3,7 @@ import { DatabaseConnection } from 'src/db/database.connection';
 import { SortI } from 'src/api/entities/interfaces/api.entity';
 import { plainToInstance } from 'class-transformer';
 import { TagRepository } from './tag.repository.interface';
-import { TagI } from '@/api/entities/interfaces/home-management.entity';
+import { TagI } from '@/api/home-management/entities/interfaces/home-management.entity';
 import {
   CreateTagDto,
   GetTagDto,

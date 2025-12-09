@@ -19,12 +19,12 @@ export class CreateShoppingListProductDto {
   @IsNotEmpty()
   readonly shoppingListAmount: number;
   @ApiProperty({
-    description: 'The ID of the store',
+    description: 'The ID of the shop',
     example: 2,
     nullable: false,
   })
   @IsNumber()
-  storeID: string;
+  shopID: number;
 }
 
 export class GetShoppingListProductDto {
@@ -44,9 +44,9 @@ export class GetShoppingListProductDto {
   @IsString()
   productDateLastConsumed: string;
   @IsNumber()
-  storeID: number;
+  shopID: number;
   @IsString()
-  storeName: string;
+  shopName: string;
   @IsNumber()
   tagID: number;
   @IsString()

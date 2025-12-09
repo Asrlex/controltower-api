@@ -1,4 +1,8 @@
-import { AbsenceTypes, CarTaskTypes, ShiftTypes } from '../enums/dto.enum';
+import {
+  CarTaskTypes,
+  ShiftTypes,
+  AbsenceTypes,
+} from '@/api/entities/enums/dto.enum';
 
 export interface StockProductI {
   stockProductID: number;
@@ -10,7 +14,7 @@ export interface ShoppingListProductI {
   shoppingListProductID: number;
   shoppingListProductAmount: number;
   product: ProductI;
-  store: StoreI;
+  shop: ShopI;
 }
 
 export interface ProductI {
@@ -22,9 +26,9 @@ export interface ProductI {
   tags: TagI[];
 }
 
-export interface StoreI {
-  storeID: number;
-  storeName: string;
+export interface ShopI {
+  shopID: number;
+  shopName: string;
 }
 
 export interface TagI {

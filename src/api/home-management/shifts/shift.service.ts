@@ -8,7 +8,7 @@ import {
   AbsenceI,
   ShiftI,
   UserI,
-} from '@/api/entities/interfaces/home-management.entity';
+} from '@/api/home-management/entities/interfaces/home-management.entity';
 import {
   CreateAbsenceDto,
   CreateShiftCheckinDto,
@@ -18,7 +18,7 @@ import {
 export class ShiftService {
   constructor(
     @Inject(SHIFT_REPOSITORY)
-    private readonly storeRepository: ShiftRepository,
+    private readonly shiftRepository: ShiftRepository,
   ) {}
 
   /**
@@ -40,7 +40,7 @@ export class ShiftService {
     entities: ShiftI[];
     total: number;
   }> {
-    return await this.storeRepository.findAll();
+    return await this.shiftRepository.findAll();
   }
 
   /**
@@ -48,7 +48,7 @@ export class ShiftService {
    * @returns string - todos los turnos
    */
   async findAllAbsences(user: UserI): Promise<AbsenceI[]> {
-    return await this.storeRepository.findAllAbsences(user);
+    return await this.shiftRepository.findAllAbsences(user);
   }
 
   /**
@@ -57,7 +57,7 @@ export class ShiftService {
    * @returns string
    */
   async getShiftById(id: string): Promise<ShiftI> {
-    return await this.storeRepository.findById(id);
+    return await this.shiftRepository.findById(id);
   }
 
   /**
@@ -66,7 +66,7 @@ export class ShiftService {
    * @returns string - todos los turnos
    */
   async getShiftsByMonth(month: string, user: UserI): Promise<ShiftI[]> {
-    return await this.storeRepository.findByMonth(month, user);
+    return await this.shiftRepository.findByMonth(month, user);
   }
 
   /**
@@ -74,7 +74,7 @@ export class ShiftService {
    * @returns string - turno creado
    */
   async createShift(dto: CreateShiftCheckinDto, user: UserI): Promise<ShiftI> {
-    return await this.storeRepository.createByUser(dto, user);
+    return await this.shiftRepository.createByUser(dto, user);
   }
 
   /**
@@ -83,7 +83,7 @@ export class ShiftService {
    * @returns string - ausencia creada
    */
   async createAbsence(dto: CreateAbsenceDto, user: UserI): Promise<void> {
-    await this.storeRepository.createAbsence(dto, user);
+    await this.shiftRepository.createAbsence(dto, user);
   }
 
   /**
@@ -93,7 +93,7 @@ export class ShiftService {
    * @returns string - turno actualizado
    */
   async updateShift(id: string, customer: CreateShiftCheckinDto) {
-    return await this.storeRepository.modify(id, customer);
+    return await this.shiftRepository.modify(id, customer);
   }
 
   /**
@@ -102,7 +102,7 @@ export class ShiftService {
    * @returns null - turno eliminado
    */
   async deleteShift(id: string) {
-    await this.storeRepository.delete(id);
+    await this.shiftRepository.delete(id);
   }
 
   /**
@@ -111,6 +111,6 @@ export class ShiftService {
    * @returns null - ausencia eliminada
    */
   async deleteAbsence(id: string) {
-    await this.storeRepository.deleteAbsence(id);
+    await this.shiftRepository.deleteAbsence(id);
   }
 }

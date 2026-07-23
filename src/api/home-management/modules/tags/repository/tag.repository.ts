@@ -1,27 +1,37 @@
 import { Inject, Logger, NotFoundException } from '@nestjs/common';
-import { DatabaseConnection } from 'src/db/database.connection';
-import { SortI } from 'src/api/entities/interfaces/api.entity';
+import {
+  and,
+  asc,
+  between,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  like,
+  lt,
+  lte,
+  SQL,
+} from 'drizzle-orm';
+import { SearchCriteriaI, SortI } from 'src/api/entities/interfaces/api.entity';
 import { plainToInstance } from 'class-transformer';
 import { TagRepository } from './tag.repository.interface';
 import { TagI } from '@/api/home-management/entities/interfaces/home-management.entity';
-import {
-  CreateTagDto,
-  GetTagDto,
-} from '@/api/home-management/entities/dtos/tag.dto';
-import { BaseRepository } from '@/common/repository/base-repository';
-import { tagsQueries } from '@/db/queries/tags.queries';
+import { CreateTagDto } from '@/api/home-management/entities/dtos/tag.dto';
+import { DRIZZLE_DB } from '@/db/drizzle/drizzle.constants';
+import { HomeManagementDrizzleDb } from '@/db/drizzle/drizzle.client';
+import { productTags, recipeTags, tags, taskTags } from '@/db/schema';
+import { saveLogWithDb } from '@/common/utils/repository.utils';
 
 export class TagRepositoryImplementation
-  extends BaseRepository
   implements TagRepository
 {
   constructor(
-    @Inject('HOME_MANAGEMENT_CONNECTION')
-    private readonly homeManagementDbConnection: DatabaseConnection,
+    @Inject(DRIZZLE_DB)
+    private readonly db: HomeManagementDrizzleDb,
     private readonly logger: Logger,
-  ) {
-    super(homeManagementDbConnection);
-  }
+  ) {}
 
   /**
    * Método para obtener todos las etiquetas
@@ -31,12 +41,20 @@ export class TagRepositoryImplementation
     entities: TagI[];
     total: number;
   }> {
-    const sql = tagsQueries.findAll;
-    const result = await this.homeManagementDbConnection.execute(sql);
-    const entities: TagI[] = this.resultToTag(result);
+    const entities = await this.db
+      .select({
+        tagID: tags.id,
+        tagName: tags.name,
+        tagType: tags.type,
+      })
+      .from(tags)
+      .orderBy(desc(tags.name));
+    const [{ total }] = await this.db
+      .select({ total: count(tags.id) })
+      .from(tags);
     return {
       entities,
-      total: result[0] ? parseInt(result[0].total, 10) : 0,
+      total,
     };
   }
 
@@ -47,31 +65,30 @@ export class TagRepositoryImplementation
   async find(
     page: number,
     limit: number,
-    searchCriteria: any,
+    searchCriteria: SearchCriteriaI,
   ): Promise<{ entities: TagI[]; total: number }> {
-    let filters = '';
-    let sort: SortI = { field: 'customerName', order: 'DESC' };
-    if (searchCriteria) {
-      const sqlFilters = this.filterstoSQL(searchCriteria);
-      filters = this.addSearchToFilters(
-        sqlFilters.filters,
-        searchCriteria.search,
-      );
-      sort = sqlFilters.sort || sort;
-    }
-    const offset: number = page * limit + 1;
-    limit = offset + parseInt(limit.toString(), 10) - 1;
-    const sql = tagsQueries.find
-      .replaceAll('@DynamicWhereClause', filters)
-      .replaceAll('@DynamicOrderByField', `${sort.field}`)
-      .replaceAll('@DynamicOrderByDirection', `${sort.order}`)
-      .replace('@start', offset.toString())
-      .replace('@end', limit.toString());
-    const result = await this.homeManagementDbConnection.execute(sql);
-    const entities: TagI[] = this.resultToTag(result);
+    const whereClause = this.buildWhereClause(searchCriteria);
+    const orderBy = this.resolveSort(searchCriteria?.sort?.[0]);
+    const offset = page * limit;
+    const baseQuery = this.db
+      .select({
+        tagID: tags.id,
+        tagName: tags.name,
+        tagType: tags.type,
+      })
+      .from(tags);
+    const totalQuery = this.db.select({ total: count(tags.id) }).from(tags);
+
+    const scopedQuery = whereClause ? baseQuery.where(whereClause) : baseQuery;
+    const scopedTotalQuery = whereClause
+      ? totalQuery.where(whereClause)
+      : totalQuery;
+
+    const entities = await scopedQuery.orderBy(orderBy).limit(limit).offset(offset);
+    const [{ total }] = await scopedTotalQuery;
     return {
       entities,
-      total: result[0] ? parseInt(result[0].total, 10) : 0,
+      total,
     };
   }
 
@@ -81,10 +98,16 @@ export class TagRepositoryImplementation
    * @returns string
    */
   async findById(id: string): Promise<TagI | null> {
-    const sql = tagsQueries.findByID.replace('@id', id);
-    const result = await this.homeManagementDbConnection.execute(sql);
-    const entities: TagI[] = this.resultToTag(result);
-    return entities.length > 0 ? entities[0] : null;
+    const result = await this.db
+      .select({
+        tagID: tags.id,
+        tagName: tags.name,
+        tagType: tags.type,
+      })
+      .from(tags)
+      .where(eq(tags.id, Number(id)))
+      .limit(1);
+    return result[0] ?? null;
   }
 
   /**
@@ -93,15 +116,17 @@ export class TagRepositoryImplementation
    */
   async create(dto: CreateTagDto): Promise<TagI> {
     dto = this.prepareDTO(dto);
-    const sqlTag = tagsQueries.create.replace(
-      '@InsertValues',
-      `'${dto.tagName}', '${dto.tagType}'`,
-    );
-    const responseTag = await this.homeManagementDbConnection.execute(sqlTag);
-    const tagID = responseTag[0].id;
+    const response = await this.db
+      .insert(tags)
+      .values({
+        name: dto.tagName,
+        type: dto.tagType,
+      })
+      .returning({ id: tags.id });
+    const tagID = response[0].id;
 
-    await this.saveLog('insert', 'tag', `Created tag ${tagID}`);
-    return this.findById(tagID);
+    await saveLogWithDb(this.db, 'tag', `Created tag ${tagID}`);
+    return this.findById(String(tagID));
   }
 
   /**
@@ -117,18 +142,24 @@ export class TagRepositoryImplementation
       throw new NotFoundException('Tag not found');
     }
 
-    let sql = '';
     if (originalTag.tagType === 'Product') {
-      sql = tagsQueries.createProductTag;
+      await this.db.insert(productTags).values({
+        productId: Number(itemID),
+        tagId: Number(tagID),
+      });
     } else if (originalTag.tagType === 'Task') {
-      sql = tagsQueries.createTaskTag;
+      await this.db.insert(taskTags).values({
+        taskId: Number(itemID),
+        tagId: Number(tagID),
+      });
     } else if (originalTag.tagType === 'Recipe') {
-      sql = tagsQueries.createRecipeTag;
+      await this.db.insert(recipeTags).values({
+        recipeId: Number(itemID),
+        tagId: Number(tagID),
+      });
     } else {
       throw new NotFoundException('Tag type not found');
     }
-    sql = sql.replace('@InsertValues', `'${itemID}', '${tagID}'`);
-    await this.homeManagementDbConnection.execute(sql);
   }
 
   /**
@@ -146,13 +177,15 @@ export class TagRepositoryImplementation
     }
     dto = this.prepareDTO(dto);
 
-    const sqlTag = tagsQueries.update
-      .replace('@name', dto.tagName)
-      .replace('@type', dto.tagType)
-      .replace('@id', id);
-    await this.homeManagementDbConnection.execute(sqlTag);
+    await this.db
+      .update(tags)
+      .set({
+        name: dto.tagName,
+        type: dto.tagType,
+      })
+      .where(eq(tags.id, Number(id)));
 
-    await this.saveLog('update', 'tag', `Modified tag ${id}`);
+    await saveLogWithDb(this.db, 'tag', `Modified tag ${id}`);
     return this.findById(id);
   }
 
@@ -166,9 +199,8 @@ export class TagRepositoryImplementation
     if (!originalTag) {
       throw new NotFoundException('Tag not found');
     }
-    const sql = tagsQueries.delete.replace('@id', id);
-    await this.homeManagementDbConnection.execute(sql);
-    await this.saveLog('delete', 'tag', `Deleted tag ${id}`);
+    await this.db.delete(tags).where(eq(tags.id, Number(id)));
+    await saveLogWithDb(this.db, 'tag', `Deleted tag ${id}`);
   }
 
   /**
@@ -178,31 +210,41 @@ export class TagRepositoryImplementation
    * @returns null - etiqueta eliminado
    */
   async deleteItemTag(tagID: string, itemID: string) {
-    console.log('deleteItemTag', tagID, itemID);
     const originalTag = await this.findById(tagID);
     if (!originalTag) {
       throw new NotFoundException('Tag not found');
     }
 
-    let sql = '';
-    let sqlID = '';
     if (originalTag.tagType === 'Product') {
-      sql = tagsQueries.deleteProductTag;
-      sqlID = 'product_id';
+      await this.db
+        .delete(productTags)
+        .where(
+          and(
+            eq(productTags.productId, Number(itemID)),
+            eq(productTags.tagId, Number(tagID)),
+          ),
+        );
     } else if (originalTag.tagType === 'Task') {
-      sql = tagsQueries.deleteTaskTag;
-      sqlID = 'task_id';
+      await this.db
+        .delete(taskTags)
+        .where(
+          and(
+            eq(taskTags.taskId, Number(itemID)),
+            eq(taskTags.tagId, Number(tagID)),
+          ),
+        );
     } else if (originalTag.tagType === 'Recipe') {
-      sql = tagsQueries.deleteRecipeTag;
-      sqlID = 'recipe_id';
+      await this.db
+        .delete(recipeTags)
+        .where(
+          and(
+            eq(recipeTags.recipeId, Number(itemID)),
+            eq(recipeTags.tagId, Number(tagID)),
+          ),
+        );
     } else {
       throw new NotFoundException('Tag type not found');
     }
-    sql = sql.replace(
-      '@DeleteFields',
-      `${sqlID} = '${itemID}' AND tag_id = '${tagID}'`,
-    );
-    await this.homeManagementDbConnection.execute(sql);
   }
 
   /**
@@ -222,36 +264,100 @@ export class TagRepositoryImplementation
    * @param result - resultado de la consulta
    * @returns array de etiquetas
    */
-  private resultToTag(result: GetTagDto[]): TagI[] {
-    const mappedTag: Map<number, TagI> = new Map();
-    result.forEach((record: GetTagDto) => {
-      let tag: TagI;
-      if (mappedTag.has(record.tagID)) {
-        tag = mappedTag.get(record.tagID);
-      } else {
-        tag = {
-          tagID: record.tagID,
-          tagName: record.tagName,
-          tagType: record.tagType,
-        };
-        mappedTag.set(record.tagID, tag);
-      }
-    });
-    return Array.from(mappedTag.values());
+  private resolveSort(sort?: SortI): SQL {
+    const order = sort?.order?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    switch (sort?.field) {
+      case 'tagID':
+        return order === 'ASC' ? asc(tags.id) : desc(tags.id);
+      case 'tagType':
+        return order === 'ASC' ? asc(tags.type) : desc(tags.type);
+      case 'tagName':
+      default:
+        return order === 'ASC' ? asc(tags.name) : desc(tags.name);
+    }
   }
 
-  /**
-   * Método para añadir los criterios de búsqueda a los filtros
-   * @param filters - filtros
-   * @param search - criterios de búsqueda
-   * @returns filtros con criterios de búsqueda
-   */
-  private addSearchToFilters(filters: string, search: string): string {
-    if (search) {
-      filters += ` 
-        AND (tagName LIKE '%${search}%')
-        `;
+  private buildWhereClause(searchCriteria?: SearchCriteriaI): SQL | undefined {
+    const conditions: SQL[] = [];
+
+    searchCriteria?.filters?.forEach((filter) => {
+      const condition = this.buildFilterCondition(filter);
+      if (condition) {
+        conditions.push(condition);
+      }
+    });
+
+    if (searchCriteria?.search) {
+      conditions.push(like(tags.name, `%${searchCriteria.search}%`));
     }
-    return filters;
+
+    if (conditions.length === 0) {
+      return undefined;
+    }
+
+    return and(...conditions);
+  }
+
+  private buildFilterCondition(filter: {
+    field?: string;
+    operator?: string;
+    value?: string;
+  }): SQL | undefined {
+    if (!filter?.field || !filter?.operator || filter.value === undefined) {
+      return undefined;
+    }
+
+    const definition =
+      filter.field === 'tagID'
+        ? { column: tags.id, isNumeric: true }
+        : filter.field === 'tagName'
+          ? { column: tags.name, isNumeric: false }
+          : filter.field === 'tagType'
+            ? { column: tags.type, isNumeric: false }
+            : null;
+
+    if (!definition) {
+      return undefined;
+    }
+
+    const operator = filter.operator.toLowerCase();
+    const value = definition.isNumeric ? Number(filter.value) : filter.value;
+
+    if (operator === '=') {
+      return eq(definition.column, value as never);
+    }
+    if (operator === '>') {
+      return gt(definition.column, value as never);
+    }
+    if (operator === '>=') {
+      return gte(definition.column, value as never);
+    }
+    if (operator === '<') {
+      return lt(definition.column, value as never);
+    }
+    if (operator === '<=') {
+      return lte(definition.column, value as never);
+    }
+    if (operator === 'like' && !definition.isNumeric) {
+      return like(definition.column, `%${filter.value}%`);
+    }
+    if (operator === 'between') {
+      const [start, end] = filter.value.split(',');
+      if (definition.isNumeric) {
+        return between(definition.column, Number(start), Number(end));
+      }
+      return between(definition.column, start, end);
+    }
+    if (operator === 'in') {
+      const items = filter.value
+        .split(',')
+        .map((entry) => entry.trim().replace(/^'+|'+$/g, ''));
+      return definition.isNumeric
+        ? inArray(definition.column, items.map((entry) => Number(entry)))
+        : inArray(definition.column, items);
+    }
+
+    return undefined;
   }
 }

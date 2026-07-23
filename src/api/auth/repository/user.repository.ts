@@ -1,26 +1,24 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Inject, Logger, NotFoundException } from '@nestjs/common';
-import { BaseRepository } from '../../../common/repository/base-repository';
-import { DatabaseConnection } from '@/db/database.connection';
+import { count, eq } from 'drizzle-orm';
 import {
   CreateUserDto,
-  GetUserDto,
 } from '@/api/home-management/entities/dtos/user.dto';
 import { UserI } from '@/api/home-management/entities/interfaces/home-management.entity';
 import { UserRepository } from './user.repository.interface';
-import { usersQueries } from '@/db/queries/users.queries';
+import { DRIZZLE_DB } from '@/db/drizzle/drizzle.constants';
+import { HomeManagementDrizzleDb } from '@/db/drizzle/drizzle.client';
+import { biometrics, users } from '@/db/schema';
+import { saveLogWithDb } from '@/common/utils/repository.utils';
 
 export class UserRepositoryImplementation
-  extends BaseRepository
   implements UserRepository
 {
   constructor(
-    @Inject('HOME_MANAGEMENT_CONNECTION')
-    private readonly homeManagementDbConnection: DatabaseConnection,
+    @Inject(DRIZZLE_DB)
+    private readonly db: HomeManagementDrizzleDb,
     private readonly logger: Logger,
-  ) {
-    super(homeManagementDbConnection);
-  }
+  ) {}
 
   /**
    * Método para obtener todos los usuarios
@@ -30,12 +28,23 @@ export class UserRepositoryImplementation
     entities: any[];
     total: number;
   }> {
-    const sql = usersQueries.findAll;
-    const result = await this.homeManagementDbConnection.execute(sql);
-    const entities: UserI[] = this.resultToUser(result);
+    const entities = await this.db
+      .select({
+        userID: users.id,
+        userName: users.username,
+        userEmail: users.email,
+        userPassword: users.password,
+        userDateCreated: users.createdAt,
+        userLastModified: users.lastModifiedAt,
+        userLastLogin: users.lastLoginAt,
+      })
+      .from(users);
+    const [{ total }] = await this.db
+      .select({ total: count(users.id) })
+      .from(users);
     return {
       entities,
-      total: result[0] ? parseInt(result[0].total, 10) : 0,
+      total,
     };
   }
 
@@ -45,13 +54,23 @@ export class UserRepositoryImplementation
    * @returns string - usuario
    */
   async findById(id: string): Promise<UserI> {
-    const sql = usersQueries.findByID.replace('@id', id);
-    const result = await this.homeManagementDbConnection.execute(sql);
+    const result = await this.db
+      .select({
+        userID: users.id,
+        userName: users.username,
+        userEmail: users.email,
+        userPassword: users.password,
+        userDateCreated: users.createdAt,
+        userLastModified: users.lastModifiedAt,
+        userLastLogin: users.lastLoginAt,
+      })
+      .from(users)
+      .where(eq(users.id, Number(id)))
+      .limit(1);
     if (result.length === 0) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
-    const entities: UserI[] = this.resultToUser(result);
-    return entities.length > 0 ? entities[0] : null;
+    return result[0] ?? null;
   }
 
   /**
@@ -60,12 +79,20 @@ export class UserRepositoryImplementation
    * @returns string - usuario
    */
   async findByEmail(userEmail: string): Promise<UserI> {
-    const sql = usersQueries.findByEmail;
-    const result = await this.homeManagementDbConnection.execute(sql, [
-      userEmail,
-    ]);
-    const entities: UserI[] = this.resultToUser(result);
-    return entities.length > 0 ? entities[0] : null;
+    const result = await this.db
+      .select({
+        userID: users.id,
+        userName: users.username,
+        userEmail: users.email,
+        userPassword: users.password,
+        userDateCreated: users.createdAt,
+        userLastModified: users.lastModifiedAt,
+        userLastLogin: users.lastLoginAt,
+      })
+      .from(users)
+      .where(eq(users.email, userEmail))
+      .limit(1);
+    return result[0] ?? null;
   }
 
   /**
@@ -74,15 +101,17 @@ export class UserRepositoryImplementation
    * @returns string - usuario creado
    */
   async create(dto: CreateUserDto): Promise<UserI> {
-    const sql = usersQueries.create.replace(
-      '@InsertValues',
-      `'${dto.email}', '${dto.password}'`,
-    );
-    const result = await this.homeManagementDbConnection.execute(sql);
+    const result = await this.db
+      .insert(users)
+      .values({
+        email: dto.email,
+        password: dto.password,
+      })
+      .returning({ id: users.id });
     const userID = result[0].id;
 
-    await this.saveLog('insert', 'user', `Created user ${userID}`);
-    return this.findById(userID);
+    await saveLogWithDb(this.db, 'user', `Created user ${userID}`);
+    return this.findById(String(userID));
   }
 
   /**
@@ -95,11 +124,14 @@ export class UserRepositoryImplementation
     if (!originalUser) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
-    const sql = usersQueries.update
-      .replace('@userEmail', dto.email)
-      .replace('@userPassword', dto.password);
-    await this.homeManagementDbConnection.execute(sql);
-    await this.saveLog('update', 'user', `Updated user ${id}`);
+    await this.db
+      .update(users)
+      .set({
+        email: dto.email,
+        password: dto.password,
+      })
+      .where(eq(users.id, Number(id)));
+    await saveLogWithDb(this.db, 'user', `Updated user ${id}`);
     return this.findById(id);
   }
 
@@ -113,9 +145,8 @@ export class UserRepositoryImplementation
     if (!originalUser) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
-    const sql = usersQueries.delete.replace('@id', id);
-    await this.homeManagementDbConnection.execute(sql);
-    await this.saveLog('delete', 'user', `Deleted user ${id}`);
+    await this.db.delete(users).where(eq(users.id, Number(id)));
+    await saveLogWithDb(this.db, 'user', `Deleted user ${id}`);
   }
 
   /**
@@ -129,11 +160,11 @@ export class UserRepositoryImplementation
     credentialID: string,
     credentialPublicKey: Uint8Array,
   ): Promise<void> {
-    const sql = usersQueries.saveBiometricCredential.replace(
-      '@InsertValues',
-      `'${userID}', '${credentialID}', '${credentialPublicKey}'`,
-    );
-    await this.homeManagementDbConnection.execute(sql);
+    await this.db.insert(biometrics).values({
+      userId: userID,
+      credentialId: credentialID,
+      credentialPublicKey: Buffer.from(credentialPublicKey),
+    });
   }
 
   /**
@@ -142,10 +173,10 @@ export class UserRepositoryImplementation
    * @param challenge - challenge a guardar
    */
   async saveChallenge(userID: number, challenge: string): Promise<void> {
-    const sql = usersQueries.saveChallenge
-      .replace('@webauthn_challenge', challenge)
-      .replace('@id', userID.toString());
-    await this.homeManagementDbConnection.execute(sql);
+    await this.db
+      .update(users)
+      .set({ webauthnChallenge: challenge })
+      .where(eq(users.id, userID));
   }
 
   /**
@@ -154,12 +185,15 @@ export class UserRepositoryImplementation
    * @returns string - challenge del usuario
    */
   async findChallenge(userID: number): Promise<string> {
-    const sql = usersQueries.findChallenge.replace('@id', userID.toString());
-    const result = await this.homeManagementDbConnection.execute(sql);
+    const result = await this.db
+      .select({ challenge: users.webauthnChallenge })
+      .from(users)
+      .where(eq(users.id, userID))
+      .limit(1);
     if (result.length === 0) {
       throw new NotFoundException(`User with ID ${userID} not found`);
     }
-    return result[0].webauthn_challenge;
+    return result[0].challenge;
   }
 
   /**
@@ -172,14 +206,21 @@ export class UserRepositoryImplementation
     credentialPublicKey: Uint8Array;
     credentialCounter: number;
   }> {
-    const sql = usersQueries.findCredentials.replace('@id', userID.toString());
-    const result = await this.homeManagementDbConnection.execute(sql);
+    const result = await this.db
+      .select({
+        credentialID: biometrics.credentialId,
+        credentialPublicKey: biometrics.credentialPublicKey,
+        credentialCounter: biometrics.counter,
+      })
+      .from(biometrics)
+      .where(eq(biometrics.userId, userID))
+      .limit(1);
     if (result.length === 0) {
       throw new NotFoundException(`User with ID ${userID} not found`);
     }
     return {
       credentialID: result[0].credentialID,
-      credentialPublicKey: Buffer.from(result[0].credentialPublicKey, 'base64'),
+      credentialPublicKey: result[0].credentialPublicKey,
       credentialCounter: result[0].credentialCounter,
     };
   }
@@ -194,30 +235,10 @@ export class UserRepositoryImplementation
     userID: number,
     counter: number,
   ): Promise<void> {
-    const sql = usersQueries.updateCredentialCounter
-      .replace('@id', userID.toString())
-      .replace('@counter', counter.toString());
-    await this.homeManagementDbConnection.execute(sql);
-  }
-
-  /**
-   * Método para convertir el resultado de la consulta a un array de usuarios
-   * @param result - resultado de la consulta
-   * @returns array de usuarios
-   */
-  private resultToUser(result: GetUserDto[]): UserI[] {
-    const users: UserI[] = result.map((record: GetUserDto) => {
-      return {
-        userID: record.userID,
-        userName: record.userName,
-        userEmail: record.userEmail,
-        userPassword: record.userPassword,
-        userDateCreated: record.userDateCreated,
-        userLastModified: record.userDateModified,
-        userLastLogin: record.userDateLastLogin,
-      };
-    });
-    return users;
+    await this.db
+      .update(biometrics)
+      .set({ counter })
+      .where(eq(biometrics.userId, userID));
   }
 
   find(

@@ -1,6 +1,20 @@
 import { forwardRef, Inject, Logger, NotFoundException } from '@nestjs/common';
-import { DatabaseConnection } from 'src/db/database.connection';
-import { SortI } from 'src/api/entities/interfaces/api.entity';
+import {
+  and,
+  asc,
+  between,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  like,
+  lt,
+  lte,
+  SQL,
+} from 'drizzle-orm';
+import { SearchCriteriaI, SortI } from 'src/api/entities/interfaces/api.entity';
 import { plainToInstance } from 'class-transformer';
 import {
   ShoppingListProductI,
@@ -8,29 +22,27 @@ import {
 } from '@/api/home-management/entities/interfaces/home-management.entity';
 import {
   CreateShoppingListProductDto,
-  GetShoppingListProductDto,
 } from '@/api/home-management/entities/dtos/shopping-list.dto';
 import { StockProductRepository } from '../../stock/repository/stock.repository.interface';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { ShoppingListProductRepository } from './shopping-list.repository.interface';
-import { BaseRepository } from '@/common/repository/base-repository';
-import { shoppingListQueries } from '@/db/queries/shopping-list.queries';
+import { DRIZZLE_DB } from '@/db/drizzle/drizzle.constants';
+import { HomeManagementDrizzleDb } from '@/db/drizzle/drizzle.client';
+import { productTags, products, shoppingList, shops, tags } from '@/db/schema';
+import { saveLogWithDb } from '@/common/utils/repository.utils';
 
 export class ShoppingListProductRepositoryImplementation
-  extends BaseRepository
   implements ShoppingListProductRepository
 {
   constructor(
-    @Inject('HOME_MANAGEMENT_CONNECTION')
-    private readonly homeManagementDbConnection: DatabaseConnection,
+    @Inject(DRIZZLE_DB)
+    private readonly db: HomeManagementDrizzleDb,
     private readonly logger: Logger,
     @Inject(forwardRef(() => 'STOCK_PRODUCT_REPOSITORY'))
     protected readonly stockProductRepository: StockProductRepository,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
-  ) {
-    super(homeManagementDbConnection);
-  }
+  ) {}
 
   /**
    * Método para obtener todos los productos
@@ -51,16 +63,17 @@ export class ShoppingListProductRepositoryImplementation
         return cachedShoppingList;
       }
     }
-    const sql = shoppingListQueries.findAll;
-    const result = await this.homeManagementDbConnection.execute(sql);
+    const result = await this.fetchShoppingListRows();
     const entities: ShoppingListProductI[] = this.resultToProduct(result);
-    const total = result[0] ? parseInt(result[0].total, 10) : 0;
+    const [{ total }] = await this.db
+      .select({ total: count(shoppingList.id) })
+      .from(shoppingList);
     if (this.cacheManager) {
       await this.cacheManager.set(cacheKey, { entities, total });
     }
     return {
       entities,
-      total,
+      total: Number(total),
     };
   }
 
@@ -71,31 +84,39 @@ export class ShoppingListProductRepositoryImplementation
   async find(
     page: number,
     limit: number,
-    searchCriteria: any,
+    searchCriteria: SearchCriteriaI,
   ): Promise<{ entities: ShoppingListProductI[]; total: number }> {
-    let filters = '';
-    let sort: SortI = { field: 'customerName', order: 'DESC' };
-    if (searchCriteria) {
-      const sqlFilters = this.filterstoSQL(searchCriteria);
-      filters = this.addSearchToFilters(
-        sqlFilters.filters,
-        searchCriteria.search,
-      );
-      sort = sqlFilters.sort || sort;
-    }
-    const offset: number = page * limit + 1;
-    limit = offset + parseInt(limit.toString(), 10) - 1;
-    const sql = shoppingListQueries.find
-      .replaceAll('@DynamicWhereClause', filters)
-      .replaceAll('@DynamicOrderByField', `${sort.field}`)
-      .replaceAll('@DynamicOrderByDirection', `${sort.order}`)
-      .replace('@start', offset.toString())
-      .replace('@end', limit.toString());
-    const result = await this.homeManagementDbConnection.execute(sql);
+    const whereClause = this.buildWhereClause(searchCriteria);
+    const orderBy = this.resolveSort(searchCriteria?.sort?.[0]);
+    const offset = page * limit;
+
+    const idsQuery = this.db
+      .select({ id: shoppingList.id })
+      .from(shoppingList)
+      .innerJoin(products, eq(products.id, shoppingList.productId))
+      .innerJoin(shops, eq(shops.id, shoppingList.storeId));
+    const scopedIdsQuery = whereClause ? idsQuery.where(whereClause) : idsQuery;
+    const paginatedRows = await scopedIdsQuery
+      .orderBy(orderBy)
+      .limit(limit)
+      .offset(offset);
+    const shoppingListIds = paginatedRows.map((item) => item.id);
+    const result = shoppingListIds.length > 0
+      ? await this.fetchShoppingListRows(shoppingListIds, orderBy)
+      : [];
     const entities: ShoppingListProductI[] = this.resultToProduct(result);
+    const totalQuery = this.db
+      .select({ total: count(shoppingList.id) })
+      .from(shoppingList)
+      .innerJoin(products, eq(products.id, shoppingList.productId))
+      .innerJoin(shops, eq(shops.id, shoppingList.storeId));
+    const [{ total }] = whereClause
+      ? await totalQuery.where(whereClause)
+      : await totalQuery;
+
     return {
       entities,
-      total: result[0] ? parseInt(result[0].total, 10) : 0,
+      total: Number(total),
     };
   }
 
@@ -105,8 +126,7 @@ export class ShoppingListProductRepositoryImplementation
    * @returns string
    */
   async findById(id: string): Promise<ShoppingListProductI | null> {
-    const sql = shoppingListQueries.findByID.replace('@id', id);
-    const result = await this.homeManagementDbConnection.execute(sql);
+    const result = await this.fetchShoppingListRows([Number(id)]);
     const entities: ShoppingListProductI[] = this.resultToProduct(result);
     return entities.length > 0 ? entities[0] : null;
   }
@@ -119,31 +139,28 @@ export class ShoppingListProductRepositoryImplementation
     dto: CreateShoppingListProductDto,
   ): Promise<ShoppingListProductI> {
     dto = this.prepareDTO(dto);
-    const sqlProduct = shoppingListQueries.create.replace(
-      '@InsertValues',
-      `'${dto.shoppingListAmount}', '${dto.shoppingListProductID}', '${dto.shopID}'`,
-    );
+    const response = await this.db
+      .insert(shoppingList)
+      .values({
+        amount: dto.shoppingListAmount,
+        productId: dto.shoppingListProductID,
+        storeId: dto.shopID,
+      })
+      .returning({ id: shoppingList.id });
+    const productID = response[0].id;
+    const newShoppingListProduct = await this.findById(String(productID));
 
-    const responseProduct =
-      await this.homeManagementDbConnection.execute(sqlProduct);
-    const productID = responseProduct[0].id;
-    const newShoppingListProduct = await this.findById(productID);
-
-    const shoppingList: {
+    const cachedShoppingList: {
       entities: ShoppingListProductI[];
       total: number;
     } = await this.cacheManager.get('shopping-list');
-    if (shoppingList) {
-      shoppingList.entities.push(newShoppingListProduct);
-      shoppingList.total += 1;
-      await this.cacheManager.set('shopping-list', shoppingList);
+    if (cachedShoppingList) {
+      cachedShoppingList.entities.push(newShoppingListProduct);
+      cachedShoppingList.total += 1;
+      await this.cacheManager.set('shopping-list', cachedShoppingList);
     }
 
-    await this.saveLog(
-      'insert',
-      'shopping_list',
-      `Created product ${productID}`,
-    );
+    await saveLogWithDb(this.db, 'shopping_list', `Created product ${productID}`);
     return newShoppingListProduct;
   }
 
@@ -165,26 +182,30 @@ export class ShoppingListProductRepositoryImplementation
     }
     dto = this.prepareDTO(dto);
 
-    const sqlProduct = shoppingListQueries.update
-      .replace('@amount', dto.shoppingListAmount.toString())
-      .replace('@product_id', dto.shoppingListProductID.toString())
-      .replace('@id', id);
-    await this.homeManagementDbConnection.execute(sqlProduct);
+    await this.db
+      .update(shoppingList)
+      .set({
+        amount: dto.shoppingListAmount,
+        productId: dto.shoppingListProductID,
+      })
+      .where(eq(shoppingList.id, Number(id)));
     const editedProduct = await this.findById(id);
 
-    const shoppingList: {
+    const cachedShoppingList: {
       entities: ShoppingListProductI[];
       total: number;
     } = await this.cacheManager.get('shopping-list');
-    if (shoppingList) {
-      const index = shoppingList.entities.findIndex(
+    if (cachedShoppingList) {
+      const index = cachedShoppingList.entities.findIndex(
         (p: ShoppingListProductI) => p.shoppingListProductID.toString() === id,
       );
-      shoppingList.entities[index] = editedProduct;
-      await this.cacheManager.set('shopping-list', shoppingList);
+      if (index !== -1) {
+        cachedShoppingList.entities[index] = editedProduct;
+        await this.cacheManager.set('shopping-list', cachedShoppingList);
+      }
     }
 
-    await this.saveLog('update', 'shopping_list', `Modified product ${id}`);
+    await saveLogWithDb(this.db, 'shopping_list', `Modified product ${id}`);
     return editedProduct;
   }
 
@@ -199,17 +220,12 @@ export class ShoppingListProductRepositoryImplementation
       throw new NotFoundException('Product not found');
     }
 
-    console.log(originalProduct);
     await this.delete(shoppingListProductID);
     const response = await this.stockProductRepository.create({
       stockProductID: originalProduct.product.productID,
       stockProductAmount: originalProduct.shoppingListProductAmount,
     });
-    await this.saveLog(
-      'update',
-      'shopping_list',
-      `Bought product ${shoppingListProductID}`,
-    );
+    await saveLogWithDb(this.db, 'shopping_list', `Bought product ${shoppingListProductID}`);
     return response;
   }
 
@@ -224,15 +240,11 @@ export class ShoppingListProductRepositoryImplementation
     if (!originalProduct) {
       throw new NotFoundException('Product not found');
     }
-    const sql = shoppingListQueries.modifyAmount
-      .replace('@amount', amount.toString())
-      .replace('@id', productId);
-    await this.homeManagementDbConnection.execute(sql);
-    await this.saveLog(
-      'update',
-      'shopping_list',
-      `Modified amount of product ${productId}`,
-    );
+    await this.db
+      .update(shoppingList)
+      .set({ amount })
+      .where(eq(shoppingList.id, Number(productId)));
+    await saveLogWithDb(this.db, 'shopping_list', `Modified amount of product ${productId}`);
   }
 
   /**
@@ -245,23 +257,24 @@ export class ShoppingListProductRepositoryImplementation
     if (!originalProduct) {
       throw new NotFoundException('Product not found');
     }
-    const sql = shoppingListQueries.delete.replace('@id', id);
-    await this.homeManagementDbConnection.execute(sql);
+    await this.db.delete(shoppingList).where(eq(shoppingList.id, Number(id)));
 
-    const shoppingList: {
+    const cachedShoppingList: {
       entities: ShoppingListProductI[];
       total: number;
     } = await this.cacheManager.get('shopping-list');
-    if (shoppingList) {
-      const index = shoppingList.entities.findIndex(
+    if (cachedShoppingList) {
+      const index = cachedShoppingList.entities.findIndex(
         (p: ShoppingListProductI) => p.shoppingListProductID.toString() === id,
       );
-      shoppingList.entities.splice(index, 1);
-      shoppingList.total -= 1;
-      await this.cacheManager.set('shopping-list', shoppingList);
+      if (index !== -1) {
+        cachedShoppingList.entities.splice(index, 1);
+        cachedShoppingList.total = Math.max(0, cachedShoppingList.total - 1);
+        await this.cacheManager.set('shopping-list', cachedShoppingList);
+      }
     }
 
-    await this.saveLog('delete', 'shopping_list', `Deleted product ${id}`);
+    await saveLogWithDb(this.db, 'shopping_list', `Deleted product ${id}`);
   }
 
   /**
@@ -272,10 +285,7 @@ export class ShoppingListProductRepositoryImplementation
   private prepareDTO(
     dto: CreateShoppingListProductDto,
   ): CreateShoppingListProductDto {
-    dto = plainToInstance(CreateShoppingListProductDto, dto, {
-      exposeDefaultValues: true,
-    });
-    return dto;
+    return { ...dto };
   }
 
   /**
@@ -284,10 +294,10 @@ export class ShoppingListProductRepositoryImplementation
    * @returns array de productos
    */
   private resultToProduct(
-    result: GetShoppingListProductDto[],
+    result: ShoppingListRow[],
   ): ShoppingListProductI[] {
     const mappedProducts: Map<number, ShoppingListProductI> = new Map();
-    result.forEach((record: GetShoppingListProductDto) => {
+    result.forEach((record: ShoppingListRow) => {
       let product: ShoppingListProductI;
       if (mappedProducts.has(record.shoppingListProductID)) {
         product = mappedProducts.get(record.shoppingListProductID);
@@ -311,7 +321,7 @@ export class ShoppingListProductRepositoryImplementation
         mappedProducts.set(record.shoppingListProductID, product);
       }
 
-      if (record.tagID) {
+      if (record.tagID && !product.product.tags.some((tag) => tag.tagID === record.tagID)) {
         product.product.tags.push({
           tagID: record.tagID,
           tagName: record.tagName,
@@ -322,18 +332,159 @@ export class ShoppingListProductRepositoryImplementation
     return Array.from(mappedProducts.values());
   }
 
-  /**
-   * Método para añadir los criterios de búsqueda a los filtros
-   * @param filters - filtros
-   * @param search - criterios de búsqueda
-   * @returns filtros con criterios de búsqueda
-   */
-  private addSearchToFilters(filters: string, search: string): string {
-    if (search) {
-      filters += ` 
-        AND (productName LIKE '%${search}%')
-        `;
-    }
-    return filters;
+  private async fetchShoppingListRows(
+    ids?: number[],
+    orderBy?: SQL,
+  ): Promise<ShoppingListRow[]> {
+    const query = this.db
+      .select({
+        shoppingListProductID: shoppingList.id,
+        shoppingListAmount: shoppingList.amount,
+        productID: products.id,
+        productName: products.name,
+        productUnit: products.unit,
+        productDateLastBought: products.lastBoughtAt,
+        productDateLastConsumed: products.lastConsumedAt,
+        shopID: shops.id,
+        shopName: shops.name,
+        tagID: tags.id,
+        tagName: tags.name,
+        tagType: tags.type,
+      })
+      .from(shoppingList)
+      .innerJoin(products, eq(products.id, shoppingList.productId))
+      .innerJoin(shops, eq(shops.id, shoppingList.storeId))
+      .leftJoin(productTags, eq(productTags.productId, products.id))
+      .leftJoin(tags, eq(tags.id, productTags.tagId));
+
+    const scopedQuery = ids?.length
+      ? query.where(inArray(shoppingList.id, ids))
+      : query;
+
+    return scopedQuery.orderBy(orderBy ?? desc(products.name));
   }
+
+  private resolveSort(sort?: SortI): SQL {
+    const order = sort?.order?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    switch (sort?.field) {
+      case 'shoppingListProductID':
+        return order === 'ASC' ? asc(shoppingList.id) : desc(shoppingList.id);
+      case 'shoppingListAmount':
+        return order === 'ASC' ? asc(shoppingList.amount) : desc(shoppingList.amount);
+      case 'shopName':
+        return order === 'ASC' ? asc(shops.name) : desc(shops.name);
+      case 'productUnit':
+        return order === 'ASC' ? asc(products.unit) : desc(products.unit);
+      case 'productName':
+      default:
+        return order === 'ASC' ? asc(products.name) : desc(products.name);
+    }
+  }
+
+  private buildWhereClause(searchCriteria?: SearchCriteriaI): SQL | undefined {
+    const conditions: SQL[] = [];
+
+    searchCriteria?.filters?.forEach((filter) => {
+      const condition = this.buildFilterCondition(filter);
+      if (condition) {
+        conditions.push(condition);
+      }
+    });
+
+    if (searchCriteria?.search) {
+      conditions.push(like(products.name, `%${searchCriteria.search}%`));
+    }
+
+    if (conditions.length === 0) {
+      return undefined;
+    }
+
+    return and(...conditions);
+  }
+
+  private buildFilterCondition(filter: {
+    field?: string;
+    operator?: string;
+    value?: string;
+  }): SQL | undefined {
+    if (!filter?.field || !filter?.operator || filter.value === undefined) {
+      return undefined;
+    }
+
+    const definition =
+      filter.field === 'shoppingListProductID'
+        ? { column: shoppingList.id, isNumeric: true }
+        : filter.field === 'shoppingListAmount'
+          ? { column: shoppingList.amount, isNumeric: true }
+          : filter.field === 'productID'
+            ? { column: products.id, isNumeric: true }
+            : filter.field === 'productName'
+              ? { column: products.name, isNumeric: false }
+              : filter.field === 'productUnit'
+                ? { column: products.unit, isNumeric: false }
+                : filter.field === 'shopID'
+                  ? { column: shops.id, isNumeric: true }
+                  : filter.field === 'shopName'
+                    ? { column: shops.name, isNumeric: false }
+                    : null;
+
+    if (!definition) {
+      return undefined;
+    }
+
+    const operator = filter.operator.toLowerCase();
+    const value = definition.isNumeric ? Number(filter.value) : filter.value;
+
+    if (operator === '=') {
+      return eq(definition.column, value as never);
+    }
+    if (operator === '>') {
+      return gt(definition.column, value as never);
+    }
+    if (operator === '>=') {
+      return gte(definition.column, value as never);
+    }
+    if (operator === '<') {
+      return lt(definition.column, value as never);
+    }
+    if (operator === '<=') {
+      return lte(definition.column, value as never);
+    }
+    if (operator === 'like' && !definition.isNumeric) {
+      return like(definition.column, `%${filter.value}%`);
+    }
+    if (operator === 'between') {
+      const [start, end] = filter.value.split(',');
+      if (definition.isNumeric) {
+        return between(definition.column, Number(start), Number(end));
+      }
+      return between(definition.column, start, end);
+    }
+    if (operator === 'in') {
+      const items = filter.value
+        .split(',')
+        .map((entry) => entry.trim().replace(/^'+|'+$/g, ''));
+      return definition.isNumeric
+        ? inArray(definition.column, items.map((entry) => Number(entry)))
+        : inArray(definition.column, items);
+    }
+
+    return undefined;
+  }
+}
+
+interface ShoppingListRow {
+  shoppingListProductID: number;
+  shoppingListAmount: number;
+  productID: number;
+  productName: string;
+  productUnit: string | null;
+  productDateLastBought: string | null;
+  productDateLastConsumed: string | null;
+  shopID: number;
+  shopName: string;
+  tagID: number | null;
+  tagName: string | null;
+  tagType: string | null;
 }

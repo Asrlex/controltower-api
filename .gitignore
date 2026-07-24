@@ -9,3 +9,4 @@ scripts
 *.log
 *.tsbuildinfo
 *.sqlite3
+*.db

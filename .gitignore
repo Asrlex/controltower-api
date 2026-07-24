@@ -2,6 +2,7 @@ node_modules
 dist
 coverage
 logs
+drizzle
 .env
 *.env*
 scripts
@@ -9,3 +10,4 @@ scripts
 *.log
 *.tsbuildinfo
 *.sqlite3
+*.db

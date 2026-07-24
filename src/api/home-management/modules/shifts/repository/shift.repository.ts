@@ -1,33 +1,31 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Inject, Logger, NotFoundException } from '@nestjs/common';
-import { DatabaseConnection } from 'src/db/database.connection';
+import { asc, count, eq, isNull, or, sql } from 'drizzle-orm';
 import { plainToInstance } from 'class-transformer';
-import { BaseRepository } from '@/common/repository/base-repository';
+import { AbsenceTypes, ShiftTypes } from '@/api/entities/enums/dto.enum';
 import { ShiftRepository } from './shift.repository.interface';
 import {
   AbsenceI,
   ShiftI,
   UserI,
 } from '@/api/home-management/entities/interfaces/home-management.entity';
-import { shiftQueries } from '@/db/queries/shifts.queries';
 import {
   CreateAbsenceDto,
   CreateShiftCheckinDto,
-  GetAbsenceDto,
-  GetShiftCheckinDto,
 } from '@/api/home-management/entities/dtos/shift.dto';
+import { DRIZZLE_DB } from '@/db/drizzle/drizzle.constants';
+import { HomeManagementDrizzleDb } from '@/db/drizzle/drizzle.client';
+import { absences, shifts } from '@/db/schema';
+import { saveLogWithDb } from '@/common/utils/repository.utils';
 
 export class ShiftRepositoryImplementation
-  extends BaseRepository
   implements ShiftRepository
 {
   constructor(
-    @Inject('HOME_MANAGEMENT_CONNECTION')
-    private readonly homeManagementDbConnection: DatabaseConnection,
+    @Inject(DRIZZLE_DB)
+    private readonly db: HomeManagementDrizzleDb,
     private readonly logger: Logger,
-  ) {
-    super(homeManagementDbConnection);
-  }
+  ) {}
 
   /**
    * Método para obtener todos los turnos
@@ -37,12 +35,22 @@ export class ShiftRepositoryImplementation
     entities: ShiftI[];
     total: number;
   }> {
-    const sql = shiftQueries.findAll;
-    const result = await this.homeManagementDbConnection.execute(sql);
+    const result = await this.db
+      .select({
+        shiftID: shifts.id,
+        shiftDate: shifts.date,
+        shiftTimestamp: shifts.timestamp,
+        shiftType: shifts.type,
+      })
+      .from(shifts)
+      .orderBy(asc(shifts.date), asc(shifts.timestamp));
     const entities: ShiftI[] = this.resultToShift(result);
+    const [{ total }] = await this.db
+      .select({ total: count(shifts.id) })
+      .from(shifts);
     return {
       entities,
-      total: result[0] ? parseInt(result[0].total, 10) : 0,
+      total,
     };
   }
 
@@ -51,19 +59,22 @@ export class ShiftRepositoryImplementation
    * @returns string - todas las ausencias
    */
   async findAllAbsences(user: UserI): Promise<AbsenceI[]> {
-    const sql = shiftQueries.findAllAbsences.replaceAll(
-      '@id',
-      `'${user.userID.toString()}' OR user_id IS NULL`,
-    );
-    const result = await this.homeManagementDbConnection.execute(sql);
-    const entities: AbsenceI[] = result.map((record: GetAbsenceDto) => ({
-      absenceID: record.absenceID,
-      absenceDate: record.absenceDate,
-      absenceType: record.absenceType,
-      absenceHours: record.absenceHours,
-      absenceComment: record.absenceComment,
+    const result = await this.db
+      .select({
+        absenceID: absences.id,
+        absenceDate: absences.date,
+        absenceType: absences.type,
+        absenceHours: absences.hours,
+        absenceComment: absences.comment,
+      })
+      .from(absences)
+      .where(or(eq(absences.userId, user.userID), isNull(absences.userId)))
+      .orderBy(asc(absences.date));
+
+    return result.map((absence) => ({
+      ...absence,
+      absenceType: absence.absenceType as AbsenceTypes,
     }));
-    return entities;
   }
 
   async find(
@@ -80,8 +91,16 @@ export class ShiftRepositoryImplementation
    * @returns string
    */
   async findById(id: string): Promise<ShiftI | null> {
-    const sql = shiftQueries.findByID.replace('@id', id);
-    const result = await this.homeManagementDbConnection.execute(sql);
+    const result = await this.db
+      .select({
+        shiftID: shifts.id,
+        shiftDate: shifts.date,
+        shiftTimestamp: shifts.timestamp,
+        shiftType: shifts.type,
+      })
+      .from(shifts)
+      .where(eq(shifts.id, Number(id)))
+      .orderBy(asc(shifts.timestamp));
     const entities: ShiftI[] = this.resultToShift(result);
     return entities.length > 0 ? entities[0] : null;
   }
@@ -92,11 +111,18 @@ export class ShiftRepositoryImplementation
    * @returns string
    */
   async findByMonth(month: string, user: UserI): Promise<ShiftI[]> {
-    const sql = shiftQueries.findByMonth.replace(
-      '@id',
-      `'${month}' AND user_id = '${user.userID}'`,
-    );
-    const result = await this.homeManagementDbConnection.execute(sql);
+    const result = await this.db
+      .select({
+        shiftID: shifts.id,
+        shiftDate: shifts.date,
+        shiftTimestamp: shifts.timestamp,
+        shiftType: shifts.type,
+      })
+      .from(shifts)
+      .where(
+        sql`strftime('%Y-%m', ${shifts.date}) = ${month} AND ${shifts.userId} = ${user.userID}`,
+      )
+      .orderBy(asc(shifts.date), asc(shifts.timestamp));
     const entities: ShiftI[] = this.resultToShift(result);
     return entities.length > 0 ? entities : null;
   }
@@ -111,16 +137,19 @@ export class ShiftRepositoryImplementation
    */
   async createByUser(dto: CreateShiftCheckinDto, user: UserI): Promise<ShiftI> {
     dto = this.prepareDTO(dto);
-    const sqlProduct = shiftQueries.create.replace(
-      '@InsertValues',
-      `'${dto.shiftDate}', '${dto.shiftTimestamp}', '${dto.shiftType}', '${user.userID}'`,
-    );
-    const responseProduct =
-      await this.homeManagementDbConnection.execute(sqlProduct);
-    const shiftID = responseProduct[0].id;
+    const response = await this.db
+      .insert(shifts)
+      .values({
+        date: dto.shiftDate,
+        timestamp: dto.shiftTimestamp,
+        type: dto.shiftType,
+        userId: user.userID,
+      })
+      .returning({ id: shifts.id });
+    const shiftID = response[0].id;
 
-    await this.saveLog('insert', 'shift', `Created shift ${shiftID}`);
-    return this.findById(shiftID);
+    await saveLogWithDb(this.db, 'shift', `Created shift ${shiftID}`);
+    return this.findById(String(shiftID));
   }
 
   /**
@@ -128,13 +157,15 @@ export class ShiftRepositoryImplementation
    * @returns string - ausencia creada
    */
   async createAbsence(dto: CreateAbsenceDto, user: UserI): Promise<void> {
-    const sqlProduct = shiftQueries.createAbsence.replace(
-      '@InsertValues',
-      `'${dto.absenceDate}', '${dto.absenceType}', '${dto.absenceHours}', '${dto.absenceComment}', '${user.userID}'`,
-    );
-    await this.homeManagementDbConnection.execute(sqlProduct);
+    await this.db.insert(absences).values({
+      date: dto.absenceDate,
+      type: dto.absenceType,
+      hours: Number(dto.absenceHours),
+      comment: dto.absenceComment,
+      userId: user.userID,
+    });
 
-    await this.saveLog('insert', 'absence', `Created absence`);
+    await saveLogWithDb(this.db, 'absence', `Created absence`);
   }
 
   /**
@@ -152,14 +183,16 @@ export class ShiftRepositoryImplementation
     }
     dto = this.prepareDTO(dto);
 
-    const sqlProduct = shiftQueries.update
-      .replace('@date', dto.shiftDate)
-      .replace('@timestamp', dto.shiftTimestamp)
-      .replace('@type', dto.shiftType)
-      .replace('@id', id);
-    await this.homeManagementDbConnection.execute(sqlProduct);
+    await this.db
+      .update(shifts)
+      .set({
+        date: dto.shiftDate,
+        timestamp: dto.shiftTimestamp,
+        type: dto.shiftType,
+      })
+      .where(eq(shifts.id, Number(id)));
 
-    await this.saveLog('update', 'shift', `Modified shift ${id}`);
+    await saveLogWithDb(this.db, 'shift', `Modified shift ${id}`);
     return this.findById(id);
   }
 
@@ -173,9 +206,8 @@ export class ShiftRepositoryImplementation
     if (!originalShift) {
       throw new NotFoundException('Shift not found');
     }
-    const sql = shiftQueries.delete.replace('@id', id);
-    await this.homeManagementDbConnection.execute(sql);
-    await this.saveLog('delete', 'shift', `Deleted shift ${id}`);
+    await this.db.delete(shifts).where(eq(shifts.id, Number(id)));
+    await saveLogWithDb(this.db, 'shift', `Deleted shift ${id}`);
   }
 
   /**
@@ -184,9 +216,8 @@ export class ShiftRepositoryImplementation
    * @returns string - ausencia eliminada
    */
   async deleteAbsence(id: string): Promise<void> {
-    const sql = shiftQueries.deleteAbsence.replace('@id', id);
-    await this.homeManagementDbConnection.execute(sql);
-    await this.saveLog('delete', 'absence', `Deleted absence ${id}`);
+    await this.db.delete(absences).where(eq(absences.id, Number(id)));
+    await saveLogWithDb(this.db, 'absence', `Deleted absence ${id}`);
   }
 
   /**
@@ -206,9 +237,9 @@ export class ShiftRepositoryImplementation
    * @param result - resultado de la consulta
    * @returns array de turnos
    */
-  private resultToShift(result: GetShiftCheckinDto[]): ShiftI[] {
+  private resultToShift(result: ShiftRow[]): ShiftI[] {
     const mappedShifts: Map<string, ShiftI> = new Map();
-    result.forEach((record: GetShiftCheckinDto, index: number) => {
+    result.forEach((record: ShiftRow, index: number) => {
       let shift: ShiftI;
       if (mappedShifts.has(record.shiftDate)) {
         shift = mappedShifts.get(record.shiftDate);
@@ -226,7 +257,7 @@ export class ShiftRepositoryImplementation
         shiftCheckinID: record.shiftID,
         shiftCheckinDate: record.shiftDate,
         shiftCheckinTimestamp: record.shiftTimestamp,
-        shiftCheckinType: record.shiftType,
+        shiftCheckinType: record.shiftType as ShiftTypes,
       });
     });
 
@@ -252,4 +283,11 @@ export class ShiftRepositoryImplementation
 
     return Array.from(mappedShifts.values());
   }
+}
+
+interface ShiftRow {
+  shiftID: number;
+  shiftDate: string;
+  shiftTimestamp: string;
+  shiftType: string;
 }

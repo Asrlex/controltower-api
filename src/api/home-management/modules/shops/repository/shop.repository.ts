@@ -1,27 +1,37 @@
 import { Inject, Logger, NotFoundException } from '@nestjs/common';
-import { DatabaseConnection } from 'src/db/database.connection';
-import { SortI } from 'src/api/entities/interfaces/api.entity';
-import { plainToInstance } from 'class-transformer';
 import {
-  CreateShopDto,
-  GetShopDto,
-} from '@/api/home-management/entities/dtos/shop.dto';
+  and,
+  asc,
+  between,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  like,
+  lt,
+  lte,
+  SQL,
+} from 'drizzle-orm';
+import { SearchCriteriaI, SortI } from 'src/api/entities/interfaces/api.entity';
+import { plainToInstance } from 'class-transformer';
+import { CreateShopDto } from '@/api/home-management/entities/dtos/shop.dto';
 import { ShopI } from '@/api/home-management/entities/interfaces/home-management.entity';
-import { BaseRepository } from '@/common/repository/base-repository';
 import { IShopRepository } from './shop.repository.interface';
-import { shopsQueries } from '@/db/queries/shops.queries';
+import { DRIZZLE_DB } from '@/db/drizzle/drizzle.constants';
+import { HomeManagementDrizzleDb } from '@/db/drizzle/drizzle.client';
+import { shops } from '@/db/schema';
+import { saveLogWithDb } from '@/common/utils/repository.utils';
 
 export class ShopRepositoryImplementation
-  extends BaseRepository
   implements IShopRepository
 {
   constructor(
-    @Inject('HOME_MANAGEMENT_CONNECTION')
-    private readonly homeManagementDbConnection: DatabaseConnection,
+    @Inject(DRIZZLE_DB)
+    private readonly db: HomeManagementDrizzleDb,
     private readonly logger: Logger,
-  ) {
-    super(homeManagementDbConnection);
-  }
+  ) {}
 
   /**
    * Método para obtener todos las tiendas
@@ -31,12 +41,19 @@ export class ShopRepositoryImplementation
     entities: ShopI[];
     total: number;
   }> {
-    const sql = shopsQueries.findAll;
-    const result = await this.homeManagementDbConnection.execute(sql);
-    const entities: ShopI[] = this.resultToShop(result);
+    const entities = await this.db
+      .select({
+        shopID: shops.id,
+        shopName: shops.name,
+      })
+      .from(shops)
+      .orderBy(desc(shops.name));
+    const [{ total }] = await this.db
+      .select({ total: count(shops.id) })
+      .from(shops);
     return {
       entities,
-      total: result[0] ? parseInt(result[0].total, 10) : 0,
+      total,
     };
   }
 
@@ -47,31 +64,31 @@ export class ShopRepositoryImplementation
   async find(
     page: number,
     limit: number,
-    searchCriteria: any,
+    searchCriteria: SearchCriteriaI,
   ): Promise<{ entities: ShopI[]; total: number }> {
-    let filters = '';
-    let sort: SortI = { field: 'customerName', order: 'DESC' };
-    if (searchCriteria) {
-      const sqlFilters = this.filterstoSQL(searchCriteria);
-      filters = this.addSearchToFilters(
-        sqlFilters.filters,
-        searchCriteria.search,
-      );
-      sort = sqlFilters.sort || sort;
-    }
-    const offset: number = page * limit + 1;
-    limit = offset + parseInt(limit.toString(), 10) - 1;
-    const sql = shopsQueries.find
-      .replaceAll('@DynamicWhereClause', filters)
-      .replaceAll('@DynamicOrderByField', `${sort.field}`)
-      .replaceAll('@DynamicOrderByDirection', `${sort.order}`)
-      .replace('@start', offset.toString())
-      .replace('@end', limit.toString());
-    const result = await this.homeManagementDbConnection.execute(sql);
-    const entities: ShopI[] = this.resultToShop(result);
+    const whereClause = this.buildWhereClause(searchCriteria);
+    const orderBy = this.resolveSort(searchCriteria?.sort?.[0]);
+    const offset = page * limit;
+
+    const baseQuery = this.db
+      .select({
+        shopID: shops.id,
+        shopName: shops.name,
+      })
+      .from(shops);
+    const totalQuery = this.db.select({ total: count(shops.id) }).from(shops);
+
+    const scopedQuery = whereClause ? baseQuery.where(whereClause) : baseQuery;
+    const scopedTotalQuery = whereClause
+      ? totalQuery.where(whereClause)
+      : totalQuery;
+
+    const entities = await scopedQuery.orderBy(orderBy).limit(limit).offset(offset);
+    const [{ total }] = await scopedTotalQuery;
+
     return {
       entities,
-      total: result[0] ? parseInt(result[0].total, 10) : 0,
+      total,
     };
   }
 
@@ -81,10 +98,15 @@ export class ShopRepositoryImplementation
    * @returns string
    */
   async findById(id: string): Promise<ShopI | null> {
-    const sql = shopsQueries.findByID.replace('@id', id);
-    const result = await this.homeManagementDbConnection.execute(sql);
-    const entities: ShopI[] = this.resultToShop(result);
-    return entities.length > 0 ? entities[0] : null;
+    const entity = await this.db
+      .select({
+        shopID: shops.id,
+        shopName: shops.name,
+      })
+      .from(shops)
+      .where(eq(shops.id, Number(id)))
+      .limit(1);
+    return entity[0] ?? null;
   }
 
   /**
@@ -93,16 +115,14 @@ export class ShopRepositoryImplementation
    */
   async create(dto: CreateShopDto): Promise<ShopI> {
     dto = this.prepareDTO(dto);
-    const sqlProduct = shopsQueries.create.replace(
-      '@InsertValues',
-      `'${dto.shopName}'`,
-    );
-    const responseProduct =
-      await this.homeManagementDbConnection.execute(sqlProduct);
-    const shopID = responseProduct[0].id;
+    const response = await this.db
+      .insert(shops)
+      .values({ name: dto.shopName })
+      .returning({ id: shops.id });
+    const shopID = response[0].id;
 
-    await this.saveLog('insert', 'shop', `Created shop ${shopID}`);
-    return this.findById(shopID);
+    await saveLogWithDb(this.db, 'shop', `Created shop ${shopID}`);
+    return this.findById(String(shopID));
   }
 
   /**
@@ -120,12 +140,12 @@ export class ShopRepositoryImplementation
     }
     dto = this.prepareDTO(dto);
 
-    const sqlProduct = shopsQueries.update
-      .replace('@name', dto.shopName)
-      .replace('@id', id);
-    await this.homeManagementDbConnection.execute(sqlProduct);
+    await this.db
+      .update(shops)
+      .set({ name: dto.shopName })
+      .where(eq(shops.id, Number(id)));
 
-    await this.saveLog('update', 'shop', `Modified shop ${id}`);
+    await saveLogWithDb(this.db, 'shop', `Modified shop ${id}`);
     return this.findById(id);
   }
 
@@ -139,9 +159,8 @@ export class ShopRepositoryImplementation
     if (!originalProduct) {
       throw new NotFoundException('Product not found');
     }
-    const sql = shopsQueries.delete.replace('@id', id);
-    await this.homeManagementDbConnection.execute(sql);
-    await this.saveLog('delete', 'shop', `Deleted shop ${id}`);
+    await this.db.delete(shops).where(eq(shops.id, Number(id)));
+    await saveLogWithDb(this.db, 'shop', `Deleted shop ${id}`);
   }
 
   /**
@@ -161,35 +180,100 @@ export class ShopRepositoryImplementation
    * @param result - resultado de la consulta
    * @returns array de tiendas
    */
-  private resultToShop(result: GetShopDto[]): ShopI[] {
-    const mappedShops: Map<number, ShopI> = new Map();
-    result.forEach((record: GetShopDto) => {
-      let shop: ShopI;
-      if (mappedShops.has(record.shopID)) {
-        shop = mappedShops.get(record.shopID);
-      } else {
-        shop = {
-          shopID: record.shopID,
-          shopName: record.shopName,
-        };
-        mappedShops.set(record.shopID, shop);
-      }
-    });
-    return Array.from(mappedShops.values());
+  private resolveSort(sort?: SortI) {
+    if (!sort?.field || sort.field === 'shopName') {
+      return sort?.order?.toUpperCase() === 'ASC'
+        ? asc(shops.name)
+        : desc(shops.name);
+    }
+
+    if (sort.field === 'shopID') {
+      return sort?.order?.toUpperCase() === 'ASC'
+        ? asc(shops.id)
+        : desc(shops.id);
+    }
+
+    return desc(shops.name);
   }
 
-  /**
-   * Método para añadir los criterios de búsqueda a los filtros
-   * @param filters - filtros
-   * @param search - criterios de búsqueda
-   * @returns filtros con criterios de búsqueda
-   */
-  private addSearchToFilters(filters: string, search: string): string {
-    if (search) {
-      filters += ` 
-        AND (shopName LIKE '%${search}%')
-        `;
+  private buildWhereClause(searchCriteria?: SearchCriteriaI): SQL | undefined {
+    const conditions: SQL[] = [];
+
+    searchCriteria?.filters?.forEach((filter) => {
+      const condition = this.buildFilterCondition(filter);
+      if (condition) {
+        conditions.push(condition);
+      }
+    });
+
+    if (searchCriteria?.search) {
+      conditions.push(like(shops.name, `%${searchCriteria.search}%`));
     }
-    return filters;
+
+    if (conditions.length === 0) {
+      return undefined;
+    }
+
+    return and(...conditions);
+  }
+
+  private buildFilterCondition(filter: {
+    field?: string;
+    operator?: string;
+    value?: string;
+  }): SQL | undefined {
+    if (!filter?.field || !filter?.operator || filter.value === undefined) {
+      return undefined;
+    }
+
+    const definition =
+      filter.field === 'shopID'
+        ? { column: shops.id, isNumeric: true }
+        : filter.field === 'shopName'
+          ? { column: shops.name, isNumeric: false }
+          : null;
+
+    if (!definition) {
+      return undefined;
+    }
+
+    const operator = filter.operator.toLowerCase();
+    const value = definition.isNumeric ? Number(filter.value) : filter.value;
+
+    if (operator === '=') {
+      return eq(definition.column, value as never);
+    }
+    if (operator === '>') {
+      return gt(definition.column, value as never);
+    }
+    if (operator === '>=') {
+      return gte(definition.column, value as never);
+    }
+    if (operator === '<') {
+      return lt(definition.column, value as never);
+    }
+    if (operator === '<=') {
+      return lte(definition.column, value as never);
+    }
+    if (operator === 'like' && !definition.isNumeric) {
+      return like(definition.column, `%${filter.value}%`);
+    }
+    if (operator === 'between') {
+      const [start, end] = filter.value.split(',');
+      if (definition.isNumeric) {
+        return between(definition.column, Number(start), Number(end));
+      }
+      return between(definition.column, start, end);
+    }
+    if (operator === 'in') {
+      const items = filter.value
+        .split(',')
+        .map((entry) => entry.trim().replace(/^'+|'+$/g, ''));
+      return definition.isNumeric
+        ? inArray(definition.column, items.map((entry) => Number(entry)))
+        : inArray(definition.column, items);
+    }
+
+    return undefined;
   }
 }

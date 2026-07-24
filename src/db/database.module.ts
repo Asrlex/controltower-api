@@ -1,42 +1,48 @@
+import { Module, OnModuleDestroy, Inject, Logger } from '@nestjs/common';
 import {
-  Module,
-  OnModuleInit,
-  OnModuleDestroy,
-  Inject,
-  Logger,
-} from '@nestjs/common';
-import { DatabaseConnection } from './database.connection';
+    closeSqliteDatabase,
+    createDrizzleDatabase,
+    createSqliteConnection,
+    type HomeManagementDrizzleDb,
+    type HomeManagementSqliteConnection,
+} from './drizzle/drizzle.client';
+import {
+    DRIZZLE_DB,
+    DRIZZLE_SQLITE_CONNECTION,
+} from './drizzle/drizzle.constants';
 
 @Module({
-  providers: [
-    {
-      provide: 'HOME_MANAGEMENT_CONNECTION',
-      useFactory: async (logger: Logger) => {
-        const sqliteConnection = new DatabaseConnection(
-          logger,
-          {
-            database: process.env.HOME_MANAGER_DATABASE,
-          },
-          'sqlite',
-        );
-        await sqliteConnection.connect();
-        return sqliteConnection;
-      },
-      inject: [Logger],
-    },
-    Logger,
-  ],
-  exports: ['HOME_MANAGEMENT_CONNECTION'],
+    providers: [
+        {
+            provide: DRIZZLE_SQLITE_CONNECTION,
+            useFactory: async (logger: Logger) => {
+                return createSqliteConnection(
+                    process.env.HOME_MANAGER_DATABASE,
+                    logger,
+                );
+            },
+            inject: [Logger],
+        },
+        {
+            provide: DRIZZLE_DB,
+            useFactory: (sqliteConnection: HomeManagementSqliteConnection) => {
+                return createDrizzleDatabase(sqliteConnection);
+            },
+            inject: [DRIZZLE_SQLITE_CONNECTION],
+        },
+        Logger,
+    ],
+    exports: [DRIZZLE_DB],
 })
-export class DatabaseModule implements OnModuleInit, OnModuleDestroy {
-  constructor(
-    @Inject('HOME_MANAGEMENT_CONNECTION')
-    private sqliteConnection: DatabaseConnection,
-  ) {}
+export class DatabaseModule implements OnModuleDestroy {
+    constructor(
+        @Inject(DRIZZLE_SQLITE_CONNECTION)
+        private readonly drizzleSqliteConnection: HomeManagementSqliteConnection,
+        @Inject(DRIZZLE_DB)
+        private readonly drizzleDb: HomeManagementDrizzleDb,
+    ) {}
 
-  async onModuleInit() {}
-
-  async onModuleDestroy() {
-    await this.sqliteConnection.close();
-  }
+    async onModuleDestroy() {
+        await closeSqliteDatabase(this.drizzleSqliteConnection);
+    }
 }

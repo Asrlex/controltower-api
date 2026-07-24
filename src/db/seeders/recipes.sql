@@ -1,12 +1,3 @@
--- Reset autoincrement IDs for the recipe table
-UPDATE sqlite_sequence SET seq = 0 WHERE name = 'recipe';
-
--- Reset autoincrement IDs for the recipe_ingredient table
-UPDATE sqlite_sequence SET seq = 0 WHERE name = 'recipe_ingredient';
-
--- Reset autoincrement IDs for the recipe_step table
-UPDATE sqlite_sequence SET seq = 0 WHERE name = 'recipe_step';
-
 -- Insert recipes
 INSERT INTO recipe (name, description) VALUES
 ('Spaghetti Carbonara', 'A classic Italian pasta dish made with eggs, cheese, pancetta, and pepper.'),
@@ -15,33 +6,33 @@ INSERT INTO recipe (name, description) VALUES
 
 -- Insert recipe ingredients
 INSERT INTO recipe_ingredient (recipe_id, amount, unit, product_id) VALUES
-(1, 200, 'g', 1),
-(1, 100, 'g', 2),
-(1, 2, 'pcs', 3),
-(1, 50, 'g', 4),
-(1, 1, 'tsp', 5),
-(2, 200, 'g', 6),
-(2, 100, 'g', 7),
-(2, 50, 'ml', 8),
-(3, 200, 'g', 9),
-(3, 300, 'ml', 10),
-(3, 2, 'pcs', 3),
-(3, 1, 'tbsp', 11),
-(3, 1, 'tsp', 12);
+((SELECT id FROM recipe WHERE name = 'Spaghetti Carbonara' LIMIT 1), 200, 'g', (SELECT id FROM products WHERE name = 'Tomate' LIMIT 1)),
+((SELECT id FROM recipe WHERE name = 'Spaghetti Carbonara' LIMIT 1), 100, 'g', (SELECT id FROM products WHERE name = 'Lechuga' LIMIT 1)),
+((SELECT id FROM recipe WHERE name = 'Spaghetti Carbonara' LIMIT 1), 2, 'pcs', (SELECT id FROM products WHERE name = 'Pechuga de Pollo' LIMIT 1)),
+((SELECT id FROM recipe WHERE name = 'Spaghetti Carbonara' LIMIT 1), 50, 'g', (SELECT id FROM products WHERE name = 'Manzana' LIMIT 1)),
+((SELECT id FROM recipe WHERE name = 'Spaghetti Carbonara' LIMIT 1), 1, 'tsp', (SELECT id FROM products WHERE name = 'Plátano' LIMIT 1)),
+((SELECT id FROM recipe WHERE name = 'Chicken Salad' LIMIT 1), 200, 'g', (SELECT id FROM products WHERE name = 'Detergente' LIMIT 1)),
+((SELECT id FROM recipe WHERE name = 'Chicken Salad' LIMIT 1), 100, 'g', (SELECT id FROM products WHERE name = 'Jabón' LIMIT 1)),
+((SELECT id FROM recipe WHERE name = 'Chicken Salad' LIMIT 1), 50, 'ml', (SELECT id FROM products WHERE name = 'Papel Higiénico' LIMIT 1)),
+((SELECT id FROM recipe WHERE name = 'Pancakes' LIMIT 1), 200, 'g', (SELECT id FROM products WHERE name = 'Zanahoria' LIMIT 1)),
+((SELECT id FROM recipe WHERE name = 'Pancakes' LIMIT 1), 300, 'ml', (SELECT id FROM products WHERE name = 'Carne de ternera' LIMIT 1)),
+((SELECT id FROM recipe WHERE name = 'Pancakes' LIMIT 1), 2, 'pcs', (SELECT id FROM products WHERE name = 'Pechuga de Pollo' LIMIT 1)),
+((SELECT id FROM recipe WHERE name = 'Pancakes' LIMIT 1), 1, 'tbsp', (SELECT id FROM products WHERE name = 'Cebolla' LIMIT 1)),
+((SELECT id FROM recipe WHERE name = 'Pancakes' LIMIT 1), 1, 'tsp', (SELECT id FROM products WHERE name = 'Ajo' LIMIT 1));
 
 -- Insert recipe steps
-INSERT INTO recipe_step (recipe_id, "order", description, name) VALUES
+INSERT INTO recipe_step (recipe_id, step_order, description, name) VALUES
 -- Spaghetti Carbonara steps
-(1, 1, 'Cook the spaghetti according to the package instructions.', 'Cook Spaghetti'),
-(1, 2, 'Fry the pancetta until crispy.', 'Fry Pancetta'),
-(1, 3, 'Beat the eggs and mix with grated Parmesan cheese.', 'Prepare Sauce'),
-(1, 4, 'Combine the spaghetti, pancetta, and egg mixture. Season with black pepper.', 'Combine Ingredients'),
+((SELECT id FROM recipe WHERE name = 'Spaghetti Carbonara' LIMIT 1), 1, 'Cook the spaghetti according to the package instructions.', 'Cook Spaghetti'),
+((SELECT id FROM recipe WHERE name = 'Spaghetti Carbonara' LIMIT 1), 2, 'Fry the pancetta until crispy.', 'Fry Pancetta'),
+((SELECT id FROM recipe WHERE name = 'Spaghetti Carbonara' LIMIT 1), 3, 'Beat the eggs and mix with grated Parmesan cheese.', 'Prepare Sauce'),
+((SELECT id FROM recipe WHERE name = 'Spaghetti Carbonara' LIMIT 1), 4, 'Combine the spaghetti, pancetta, and egg mixture. Season with black pepper.', 'Combine Ingredients'),
 -- Chicken Salad steps
-(2, 1, 'Grill the chicken until fully cooked.', 'Grill Chicken'),
-(2, 2, 'Mix the greens and vinaigrette in a bowl.', 'Prepare Salad'),
-(2, 3, 'Slice the grilled chicken and add to the salad.', 'Add Chicken'),
+((SELECT id FROM recipe WHERE name = 'Chicken Salad' LIMIT 1), 1, 'Grill the chicken until fully cooked.', 'Grill Chicken'),
+((SELECT id FROM recipe WHERE name = 'Chicken Salad' LIMIT 1), 2, 'Mix the greens and vinaigrette in a bowl.', 'Prepare Salad'),
+((SELECT id FROM recipe WHERE name = 'Chicken Salad' LIMIT 1), 3, 'Slice the grilled chicken and add to the salad.', 'Add Chicken'),
 -- Pancakes steps
-(3, 1, 'Mix the flour, sugar, and baking powder in a bowl.', 'Mix Dry Ingredients'),
-(3, 2, 'Whisk the eggs and milk together.', 'Mix Wet Ingredients'),
-(3, 3, 'Combine the wet and dry ingredients to form a batter.', 'Combine Ingredients'),
-(3, 4, 'Cook the pancakes on a hot griddle until golden brown.', 'Cook Pancakes');
+((SELECT id FROM recipe WHERE name = 'Pancakes' LIMIT 1), 1, 'Mix the flour, sugar, and baking powder in a bowl.', 'Mix Dry Ingredients'),
+((SELECT id FROM recipe WHERE name = 'Pancakes' LIMIT 1), 2, 'Whisk the eggs and milk together.', 'Mix Wet Ingredients'),
+((SELECT id FROM recipe WHERE name = 'Pancakes' LIMIT 1), 3, 'Combine the wet and dry ingredients to form a batter.', 'Combine Ingredients'),
+((SELECT id FROM recipe WHERE name = 'Pancakes' LIMIT 1), 4, 'Cook the pancakes on a hot griddle until golden brown.', 'Cook Pancakes');

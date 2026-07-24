@@ -1,27 +1,23 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Inject, Logger, NotFoundException } from '@nestjs/common';
-import { DatabaseConnection } from 'src/db/database.connection';
+import { count, eq } from 'drizzle-orm';
 import { plainToInstance } from 'class-transformer';
 import { SettingsI } from '@/api/home-management/entities/interfaces/home-management.entity';
-import {
-  CreateSettingsDto,
-  GetSettingsDto,
-} from '@/api/home-management/entities/dtos/settings.dto';
-import { BaseRepository } from '@/common/repository/base-repository';
+import { CreateSettingsDto } from '@/api/home-management/entities/dtos/settings.dto';
 import { SettingsRepository } from './settings.repository.interface';
-import { settingsQueries } from '@/db/queries/settings.queries';
+import { DRIZZLE_DB } from '@/db/drizzle/drizzle.constants';
+import { HomeManagementDrizzleDb } from '@/db/drizzle/drizzle.client';
+import { settings } from '@/db/schema';
+import { saveLogWithDb } from '@/common/utils/repository.utils';
 
 export class SettingsRepositoryImplementation
-  extends BaseRepository
   implements SettingsRepository
 {
   constructor(
-    @Inject('HOME_MANAGEMENT_CONNECTION')
-    private readonly homeManagementDbConnection: DatabaseConnection,
+    @Inject(DRIZZLE_DB)
+    private readonly db: HomeManagementDrizzleDb,
     private readonly logger: Logger,
-  ) {
-    super(homeManagementDbConnection);
-  }
+  ) {}
 
   /**
    * Método para obtener todos los ajustes
@@ -31,10 +27,18 @@ export class SettingsRepositoryImplementation
     entities: SettingsI[];
     total: number;
   }> {
-    const sql = settingsQueries.findAll;
-    const result = await this.homeManagementDbConnection.execute(sql);
-    const entities: SettingsI[] = this.resultToSettings(result);
-    const total = result[0] ? parseInt(result[0].total, 10) : 0;
+    const entities = await this.db
+      .select({
+        settingsID: settings.id,
+        settingsUserID: settings.userId,
+        settings: settings.settings,
+        settingsDateCreated: settings.createdAt,
+        settingsLastModified: settings.lastModifiedAt,
+      })
+      .from(settings);
+    const [{ total }] = await this.db
+      .select({ total: count(settings.id) })
+      .from(settings);
     return {
       entities,
       total,
@@ -55,10 +59,18 @@ export class SettingsRepositoryImplementation
    * @returns string
    */
   async findById(id: string): Promise<SettingsI | null> {
-    const sql = settingsQueries.findByID.replace('@id', id);
-    const result = await this.homeManagementDbConnection.execute(sql);
-    const entities: SettingsI[] = this.resultToSettings(result);
-    return entities.length > 0 ? entities[0] : null;
+    const result = await this.db
+      .select({
+        settingsID: settings.id,
+        settingsUserID: settings.userId,
+        settings: settings.settings,
+        settingsDateCreated: settings.createdAt,
+        settingsLastModified: settings.lastModifiedAt,
+      })
+      .from(settings)
+      .where(eq(settings.id, Number(id)))
+      .limit(1);
+    return result[0] ?? null;
   }
 
   /**
@@ -68,16 +80,17 @@ export class SettingsRepositoryImplementation
    */
   async create(dto: CreateSettingsDto): Promise<SettingsI> {
     dto = this.prepareDTO(dto);
-    const sqlSettings = settingsQueries.create.replace(
-      '@InsertValues',
-      `'${dto.settings}', '${dto.settingsUserID}'`,
-    );
-    const responseSettings =
-      await this.homeManagementDbConnection.execute(sqlSettings);
-    const settingsID = responseSettings[0].id;
-    const newSettings = await this.findById(settingsID);
+    const response = await this.db
+      .insert(settings)
+      .values({
+        settings: dto.settings,
+        userId: dto.settingsUserID,
+      })
+      .returning({ id: settings.id });
+    const settingsID = response[0].id;
+    const newSettings = await this.findById(String(settingsID));
 
-    await this.saveLog('insert', 'settings', `Created settings ${settingsID}`);
+    await saveLogWithDb(this.db, 'settings', `Created settings ${settingsID}`);
     return newSettings;
   }
 
@@ -92,18 +105,20 @@ export class SettingsRepositoryImplementation
   async modify(id: string, dto: CreateSettingsDto): Promise<SettingsI> {
     const originalSettings = await this.findById(id);
     if (!originalSettings) {
-      await this.create(dto);
+      return this.create(dto);
     }
     dto = this.prepareDTO(dto);
 
-    const sqlSettings = settingsQueries.update
-      .replace('@settings', dto.settings)
-      .replace('@id', id);
-    await this.homeManagementDbConnection.execute(sqlSettings);
-    const settings = await this.findById(id);
+    await this.db
+      .update(settings)
+      .set({
+        settings: dto.settings,
+      })
+      .where(eq(settings.id, Number(id)));
+    const updatedSettings = await this.findById(id);
 
-    await this.saveLog('update', 'settings', `Modified settings ${id}`);
-    return settings;
+    await saveLogWithDb(this.db, 'settings', `Modified settings ${id}`);
+    return updatedSettings;
   }
 
   /**
@@ -116,10 +131,9 @@ export class SettingsRepositoryImplementation
     if (!originalSettings) {
       throw new NotFoundException('Settings not found');
     }
-    const sql = settingsQueries.delete.replace('@id', id);
-    await this.homeManagementDbConnection.execute(sql);
+    await this.db.delete(settings).where(eq(settings.id, Number(id)));
 
-    await this.saveLog('delete', 'settings', `Deleted settings ${id}`);
+    await saveLogWithDb(this.db, 'settings', `Deleted settings ${id}`);
   }
 
   /**
@@ -139,23 +153,4 @@ export class SettingsRepositoryImplementation
    * @param result - resultado de la consulta
    * @returns array de ajustes
    */
-  private resultToSettings(result: GetSettingsDto[]): SettingsI[] {
-    const mappedSettingss: Map<number, SettingsI> = new Map();
-    result.forEach((record: GetSettingsDto) => {
-      let settings: SettingsI;
-      if (mappedSettingss.has(record.settingsID)) {
-        settings = mappedSettingss.get(record.settingsID);
-      } else {
-        settings = {
-          settingsID: record.settingsID,
-          settingsUserID: record.settingsUserID,
-          settings: record.settings,
-          settingsDateCreated: record.settingsDateCreated,
-          settingsLastModified: record.settingsLastModified,
-        };
-        mappedSettingss.set(record.settingsID, settings);
-      }
-    });
-    return Array.from(mappedSettingss.values());
-  }
 }

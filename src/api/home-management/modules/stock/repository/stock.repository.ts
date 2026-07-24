@@ -1,6 +1,20 @@
 import { forwardRef, Inject, Logger, NotFoundException } from '@nestjs/common';
-import { DatabaseConnection } from 'src/db/database.connection';
-import { SortI } from 'src/api/entities/interfaces/api.entity';
+import {
+  and,
+  asc,
+  between,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  like,
+  lt,
+  lte,
+  SQL,
+} from 'drizzle-orm';
+import { SearchCriteriaI, SortI } from 'src/api/entities/interfaces/api.entity';
 import { plainToInstance } from 'class-transformer';
 import {
   ShoppingListProductI,
@@ -8,29 +22,27 @@ import {
 } from '@/api/home-management/entities/interfaces/home-management.entity';
 import {
   CreateStockProductDto,
-  GetStockProductDto,
 } from '@/api/home-management/entities/dtos/stock-product.dto';
 import { ShoppingListProductRepository } from '../../shopping-list/repository/shopping-list.repository.interface';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
-import { BaseRepository } from '@/common/repository/base-repository';
 import { StockProductRepository } from './stock.repository.interface';
-import { stockProductQueries } from '@/db/queries/stock.queries';
+import { DRIZZLE_DB } from '@/db/drizzle/drizzle.constants';
+import { HomeManagementDrizzleDb } from '@/db/drizzle/drizzle.client';
+import { pantry, products, productTags, tags } from '@/db/schema';
+import { saveLogWithDb } from '@/common/utils/repository.utils';
 
 export class StockProductRepositoryImplementation
-  extends BaseRepository
   implements StockProductRepository
 {
   constructor(
-    @Inject('HOME_MANAGEMENT_CONNECTION')
-    private readonly homeManagementDbConnection: DatabaseConnection,
+    @Inject(DRIZZLE_DB)
+    private readonly db: HomeManagementDrizzleDb,
     private readonly logger: Logger,
     @Inject(forwardRef(() => 'SHOPPING_LIST_PRODUCT_REPOSITORY'))
     protected readonly shoppingListProductRepository: ShoppingListProductRepository,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
-  ) {
-    super(homeManagementDbConnection);
-  }
+  ) {}
 
   /**
    * Método para obtener todos los productos
@@ -51,16 +63,17 @@ export class StockProductRepositoryImplementation
         return cachedStock;
       }
     }
-    const sql = stockProductQueries.findAll;
-    const result = await this.homeManagementDbConnection.execute(sql);
+    const result = await this.fetchStockRows();
     const entities: StockProductI[] = this.resultToProduct(result);
-    const total = result[0] ? parseInt(result[0].total, 10) : 0;
+    const [{ total }] = await this.db
+      .select({ total: count(pantry.id) })
+      .from(pantry);
     if (this.cacheManager) {
       await this.cacheManager.set(cacheKey, { entities, total });
     }
     return {
       entities,
-      total,
+      total: Number(total),
     };
   }
 
@@ -71,31 +84,36 @@ export class StockProductRepositoryImplementation
   async find(
     page: number,
     limit: number,
-    searchCriteria: any,
+    searchCriteria: SearchCriteriaI,
   ): Promise<{ entities: StockProductI[]; total: number }> {
-    let filters = '';
-    let sort: SortI = { field: 'productName', order: 'DESC' };
-    if (searchCriteria) {
-      const sqlFilters = this.filterstoSQL(searchCriteria);
-      filters = this.addSearchToFilters(
-        sqlFilters.filters,
-        searchCriteria.search,
-      );
-      sort = sqlFilters.sort || sort;
-    }
-    const offset: number = page * limit + 1;
-    limit = offset + parseInt(limit.toString(), 10) - 1;
-    const sql = stockProductQueries.find
-      .replaceAll('@DynamicWhereClause', filters)
-      .replaceAll('@DynamicOrderByField', `${sort.field}`)
-      .replaceAll('@DynamicOrderByDirection', `${sort.order}`)
-      .replace('@start', offset.toString())
-      .replace('@end', limit.toString());
-    const result = await this.homeManagementDbConnection.execute(sql);
+    const whereClause = this.buildWhereClause(searchCriteria);
+    const orderBy = this.resolveSort(searchCriteria?.sort?.[0]);
+    const offset = page * limit;
+
+    const idsQuery = this.db.select({ id: pantry.id }).from(pantry)
+      .leftJoin(products, eq(products.id, pantry.productId));
+    const scopedIdsQuery = whereClause ? idsQuery.where(whereClause) : idsQuery;
+    const paginatedStock = await scopedIdsQuery
+      .orderBy(orderBy)
+      .limit(limit)
+      .offset(offset);
+
+    const stockIds = paginatedStock.map((item) => item.id);
+    const result = stockIds.length > 0
+      ? await this.fetchStockRows(stockIds, orderBy)
+      : [];
     const entities: StockProductI[] = this.resultToProduct(result);
+    const totalQuery = this.db
+      .select({ total: count(pantry.id) })
+      .from(pantry)
+      .leftJoin(products, eq(products.id, pantry.productId));
+    const [{ total }] = whereClause
+      ? await totalQuery.where(whereClause)
+      : await totalQuery;
+
     return {
       entities,
-      total: result[0] ? parseInt(result[0].total, 10) : 0,
+      total: Number(total),
     };
   }
 
@@ -105,8 +123,7 @@ export class StockProductRepositoryImplementation
    * @returns string
    */
   async findById(id: string): Promise<StockProductI | null> {
-    const sql = stockProductQueries.findByID.replace('@id', id);
-    const result = await this.homeManagementDbConnection.execute(sql);
+    const result = await this.fetchStockRows([Number(id)]);
     const entities: StockProductI[] = this.resultToProduct(result);
     return entities.length > 0 ? entities[0] : null;
   }
@@ -117,23 +134,25 @@ export class StockProductRepositoryImplementation
    */
   async create(dto: CreateStockProductDto): Promise<StockProductI> {
     dto = this.prepareDTO(dto);
-    const sqlProduct = stockProductQueries.create.replace(
-      '@InsertValues',
-      `'${dto.stockProductAmount}', '${dto.stockProductID}'`,
-    );
-    const responseProduct =
-      await this.homeManagementDbConnection.execute(sqlProduct);
-    const productID = responseProduct[0].id;
-    const newStockProduct = await this.findById(productID);
+    const response = await this.db
+      .insert(pantry)
+      .values({
+        amount: dto.stockProductAmount,
+        productId: dto.stockProductID,
+      })
+      .returning({ id: pantry.id });
+    const productID = response[0].id;
+    const newStockProduct = await this.findById(String(productID));
 
-    const stock: { entities: StockProductI[]; total: number } =
+    const cachedStock: { entities: StockProductI[]; total: number } =
       await this.cacheManager.get('stock');
-    if (stock) {
-      stock.entities.push(newStockProduct);
-      await this.cacheManager.set('stock', stock);
+    if (cachedStock) {
+      cachedStock.entities.push(newStockProduct);
+      cachedStock.total += 1;
+      await this.cacheManager.set('stock', cachedStock);
     }
 
-    await this.saveLog('insert', 'product', `Created product ${productID}`);
+    await saveLogWithDb(this.db, 'product', `Created product ${productID}`);
     return newStockProduct;
   }
 
@@ -152,13 +171,15 @@ export class StockProductRepositoryImplementation
     }
     dto = this.prepareDTO(dto);
 
-    const sqlProduct = stockProductQueries.update
-      .replace('@amount', dto.stockProductAmount.toString())
-      .replace('@product_id', dto.stockProductID.toString())
-      .replace('@id', id);
-    await this.homeManagementDbConnection.execute(sqlProduct);
+    await this.db
+      .update(pantry)
+      .set({
+        amount: dto.stockProductAmount,
+        productId: dto.stockProductID,
+      })
+      .where(eq(pantry.id, Number(id)));
 
-    await this.saveLog('update', 'product', `Modified product ${id}`);
+    await saveLogWithDb(this.db, 'product', `Modified product ${id}`);
     return this.findById(id);
   }
 
@@ -180,11 +201,7 @@ export class StockProductRepositoryImplementation
       shoppingListAmount: originalProduct.stockProductAmount,
       shopID: 2,
     });
-    await this.saveLog(
-      'update',
-      'shopping_list',
-      `Bought product ${stockProductID}`,
-    );
+    await saveLogWithDb(this.db, 'shopping_list', `Bought product ${stockProductID}`);
     return response;
   }
 
@@ -199,15 +216,11 @@ export class StockProductRepositoryImplementation
     if (!originalProduct) {
       throw new NotFoundException('Product not found');
     }
-    const sql = stockProductQueries.modifyAmount
-      .replace('@amount', amount.toString())
-      .replace('@id', productId);
-    await this.homeManagementDbConnection.execute(sql);
-    await this.saveLog(
-      'update',
-      'shopping_list',
-      `Modified amount of product ${productId}`,
-    );
+    await this.db
+      .update(pantry)
+      .set({ amount })
+      .where(eq(pantry.id, Number(productId)));
+    await saveLogWithDb(this.db, 'shopping_list', `Modified amount of product ${productId}`);
   }
 
   /**
@@ -221,21 +234,21 @@ export class StockProductRepositoryImplementation
       throw new NotFoundException('Product not found');
     }
 
-    const stock: { entities: StockProductI[]; total: number } =
+    const cachedStock: { entities: StockProductI[]; total: number } =
       await this.cacheManager.get('stock');
-    if (stock) {
-      const index = stock.entities.findIndex(
+    if (cachedStock) {
+      const index = cachedStock.entities.findIndex(
         (product) => product.stockProductID === Number(id),
       );
       if (index !== -1) {
-        stock.entities.splice(index, 1);
-        await this.cacheManager.set('stock', stock);
+        cachedStock.entities.splice(index, 1);
+        cachedStock.total = Math.max(0, cachedStock.total - 1);
+        await this.cacheManager.set('stock', cachedStock);
       }
     }
 
-    const sql = stockProductQueries.delete.replace('@id', id);
-    await this.homeManagementDbConnection.execute(sql);
-    await this.saveLog('delete', 'product', `Deleted product ${id}`);
+    await this.db.delete(pantry).where(eq(pantry.id, Number(id)));
+    await saveLogWithDb(this.db, 'product', `Deleted product ${id}`);
   }
 
   /**
@@ -255,9 +268,9 @@ export class StockProductRepositoryImplementation
    * @param result - resultado de la consulta
    * @returns array de productos
    */
-  private resultToProduct(result: GetStockProductDto[]): StockProductI[] {
+  private resultToProduct(result: StockRow[]): StockProductI[] {
     const mappedProducts: Map<number, StockProductI> = new Map();
-    result.forEach((record: GetStockProductDto) => {
+    result.forEach((record: StockRow) => {
       let product: StockProductI;
       if (mappedProducts.has(record.stockProductID)) {
         product = mappedProducts.get(record.stockProductID);
@@ -278,7 +291,7 @@ export class StockProductRepositoryImplementation
         mappedProducts.set(record.stockProductID, product);
       }
 
-      if (record.tagID) {
+      if (record.tagID && !product.product.tags.some((tag) => tag.tagID === record.tagID)) {
         product.product.tags.push({
           tagID: record.tagID,
           tagName: record.tagName,
@@ -289,18 +302,158 @@ export class StockProductRepositoryImplementation
     return Array.from(mappedProducts.values());
   }
 
-  /**
-   * Método para añadir los criterios de búsqueda a los filtros
-   * @param filters - filtros
-   * @param search - criterios de búsqueda
-   * @returns filtros con criterios de búsqueda
-   */
-  private addSearchToFilters(filters: string, search: string): string {
-    if (search) {
-      filters += ` 
-        AND (productName LIKE '%${search}%')
-        `;
-    }
-    return filters;
+  private async fetchStockRows(
+    stockIds?: number[],
+    orderBy?: SQL,
+  ): Promise<StockRow[]> {
+    const query = this.db
+      .select({
+        stockProductID: pantry.id,
+        stockProductAmount: pantry.amount,
+        productID: products.id,
+        productName: products.name,
+        productUnit: products.unit,
+        productDateLastBought: products.lastBoughtAt,
+        productDateLastConsumed: products.lastConsumedAt,
+        tagID: tags.id,
+        tagName: tags.name,
+        tagType: tags.type,
+      })
+      .from(pantry)
+      .innerJoin(products, eq(products.id, pantry.productId))
+      .leftJoin(productTags, eq(productTags.productId, products.id))
+      .leftJoin(tags, eq(tags.id, productTags.tagId));
+
+    const scopedQuery = stockIds?.length
+      ? query.where(inArray(pantry.id, stockIds))
+      : query;
+
+    return scopedQuery.orderBy(orderBy ?? desc(products.name));
   }
+
+  private resolveSort(sort?: SortI): SQL {
+    const order = sort?.order?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    switch (sort?.field) {
+      case 'stockProductID':
+        return order === 'ASC' ? asc(pantry.id) : desc(pantry.id);
+      case 'stockProductAmount':
+        return order === 'ASC' ? asc(pantry.amount) : desc(pantry.amount);
+      case 'productUnit':
+        return order === 'ASC' ? asc(products.unit) : desc(products.unit);
+      case 'productDateLastBought':
+        return order === 'ASC' ? asc(products.lastBoughtAt) : desc(products.lastBoughtAt);
+      case 'productDateLastConsumed':
+        return order === 'ASC'
+          ? asc(products.lastConsumedAt)
+          : desc(products.lastConsumedAt);
+      case 'productName':
+      default:
+        return order === 'ASC' ? asc(products.name) : desc(products.name);
+    }
+  }
+
+  private buildWhereClause(searchCriteria?: SearchCriteriaI): SQL | undefined {
+    const conditions: SQL[] = [];
+
+    searchCriteria?.filters?.forEach((filter) => {
+      const condition = this.buildFilterCondition(filter);
+      if (condition) {
+        conditions.push(condition);
+      }
+    });
+
+    if (searchCriteria?.search) {
+      conditions.push(like(products.name, `%${searchCriteria.search}%`));
+    }
+
+    if (conditions.length === 0) {
+      return undefined;
+    }
+
+    return and(...conditions);
+  }
+
+  private buildFilterCondition(filter: {
+    field?: string;
+    operator?: string;
+    value?: string;
+  }): SQL | undefined {
+    if (!filter?.field || !filter?.operator || filter.value === undefined) {
+      return undefined;
+    }
+
+    const definition =
+      filter.field === 'stockProductID'
+        ? { column: pantry.id, isNumeric: true }
+        : filter.field === 'stockProductAmount'
+          ? { column: pantry.amount, isNumeric: true }
+          : filter.field === 'productID'
+            ? { column: products.id, isNumeric: true }
+            : filter.field === 'productName'
+              ? { column: products.name, isNumeric: false }
+              : filter.field === 'productUnit'
+                ? { column: products.unit, isNumeric: false }
+                : filter.field === 'productDateLastBought'
+                  ? { column: products.lastBoughtAt, isNumeric: false }
+                  : filter.field === 'productDateLastConsumed'
+                    ? { column: products.lastConsumedAt, isNumeric: false }
+                    : null;
+
+    if (!definition) {
+      return undefined;
+    }
+
+    const operator = filter.operator.toLowerCase();
+    const value = definition.isNumeric ? Number(filter.value) : filter.value;
+
+    if (operator === '=') {
+      return eq(definition.column, value as never);
+    }
+    if (operator === '>') {
+      return gt(definition.column, value as never);
+    }
+    if (operator === '>=') {
+      return gte(definition.column, value as never);
+    }
+    if (operator === '<') {
+      return lt(definition.column, value as never);
+    }
+    if (operator === '<=') {
+      return lte(definition.column, value as never);
+    }
+    if (operator === 'like' && !definition.isNumeric) {
+      return like(definition.column, `%${filter.value}%`);
+    }
+    if (operator === 'between') {
+      const [start, end] = filter.value.split(',');
+      if (definition.isNumeric) {
+        return between(definition.column, Number(start), Number(end));
+      }
+      return between(definition.column, start, end);
+    }
+    if (operator === 'in') {
+      const items = filter.value
+        .split(',')
+        .map((entry) => entry.trim().replace(/^'+|'+$/g, ''));
+      return definition.isNumeric
+        ? inArray(definition.column, items.map((entry) => Number(entry)))
+        : inArray(definition.column, items);
+    }
+
+    return undefined;
+  }
+}
+
+interface StockRow {
+  stockProductID: number;
+  stockProductAmount: number;
+  productID: number;
+  productName: string;
+  productUnit: string | null;
+  productDateLastBought: string | null;
+  productDateLastConsumed: string | null;
+  tagID: number | null;
+  tagName: string | null;
+  tagType: string | null;
 }

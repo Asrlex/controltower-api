@@ -11,7 +11,7 @@ import {
 import { CreateUserDto } from '../home-management/entities/dtos/user.dto';
 import { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
+import { genSaltSync, hashSync } from "bcrypt-ts";
 import { SuccessCodes } from '../entities/enums/response-codes.enum';
 import { UserRepository } from './repository/user.repository.interface';
 import { AuthMessages } from './entities/enums/auth.enum';
@@ -72,7 +72,8 @@ export class AuthService {
     if (existingUser) {
       throw new UnauthorizedException(AuthMessages.UserAlreadyExists);
     }
-    const hashedPassword = await bcrypt.hash(signupDto.password, 10);
+    const salt = genSaltSync(10);
+    const hashedPassword = hashSync(signupDto.password, salt);
     if (!hashedPassword) {
       throw new UnauthorizedException(AuthMessages.PasswordHashingFailed);
     }
@@ -101,7 +102,7 @@ export class AuthService {
     if (!user) {
       return null;
     }
-    const isPasswordValid = await bcrypt.compare(password, user.userPassword);
+    const isPasswordValid = hashSync(password, genSaltSync(10)) === user.userPassword;
     if (!isPasswordValid) {
       return null;
     }

@@ -1,105 +1,94 @@
 import { Logger } from '@nestjs/common';
 import { drizzle, type SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
-import * as sqlite3 from 'sqlite3';
 import * as schema from '@/db/schema';
 
 export type HomeManagementDrizzleDb = SqliteRemoteDatabase<typeof schema>;
 
-type SqliteRow = Record<string, unknown>;
-
-const openSqliteDatabase = (databasePath: string): Promise<sqlite3.Database> => {
-  return new Promise((resolve, reject) => {
-    const connection = new sqlite3.Database(databasePath, (error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve(connection);
-    });
-  });
+type SqliteStatementResult = {
+    changes?: number | bigint;
+    lastInsertRowid?: number | bigint;
 };
 
+type SqliteStatement = {
+    all: (...params: unknown[]) => SqliteRow[];
+    run: (...params: unknown[]) => SqliteStatementResult;
+};
+
+export type HomeManagementSqliteConnection = {
+    prepare: (sql: string) => SqliteStatement;
+    close: () => void;
+};
+
+const { DatabaseSync } = require('node:sqlite') as {
+    DatabaseSync: new (databasePath: string) => HomeManagementSqliteConnection;
+};
+
+type SqliteRow = Record<string, unknown>;
+
 const all = (
-  connection: sqlite3.Database,
-  sql: string,
-  params: unknown[],
+    connection: HomeManagementSqliteConnection,
+    sql: string,
+    params: unknown[],
 ): Promise<SqliteRow[]> => {
-  return new Promise((resolve, reject) => {
-    connection.all(sql, params, (error, rows: SqliteRow[]) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve(rows ?? []);
-    });
-  });
+    const statement = connection.prepare(sql);
+    return Promise.resolve((statement.all(...params) as SqliteRow[]) ?? []);
 };
 
 const run = (
-  connection: sqlite3.Database,
-  sql: string,
-  params: unknown[],
+    connection: HomeManagementSqliteConnection,
+    sql: string,
+    params: unknown[],
 ): Promise<{ changes: number; lastInsertRowid: number | null }> => {
-  return new Promise((resolve, reject) => {
-    connection.run(sql, params, function onRun(error) {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve({
-        changes: this.changes ?? 0,
-        lastInsertRowid: this.lastID ?? null,
-      });
+    const statement = connection.prepare(sql);
+    const result = statement.run(...params);
+    return Promise.resolve({
+        changes: Number(result.changes ?? 0),
+        lastInsertRowid:
+            result.lastInsertRowid === undefined
+                ? null
+                : Number(result.lastInsertRowid),
     });
-  });
 };
 
 export const closeSqliteDatabase = (
-  connection: sqlite3.Database,
+    connection: HomeManagementSqliteConnection,
 ): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    connection.close((error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve();
-    });
-  });
+    connection.close();
+    return Promise.resolve();
 };
 
 export const createSqliteConnection = async (
-  databasePath: string,
-  logger: Logger,
-): Promise<sqlite3.Database> => {
-  const connection = await openSqliteDatabase(databasePath);
-  logger.log(`Connected Drizzle SQLite datasource at ${databasePath}`);
-  return connection;
+    databasePath: string,
+    logger: Logger,
+): Promise<HomeManagementSqliteConnection> => {
+    const connection = new DatabaseSync(databasePath);
+    logger.log(`Connected Drizzle SQLite datasource at ${databasePath}`);
+    return connection;
 };
 
 export const createDrizzleDatabase = (
-  connection: sqlite3.Database,
+    connection: HomeManagementSqliteConnection,
 ): HomeManagementDrizzleDb => {
-  return drizzle(
-    async (sql, params, method) => {
-      if (method === 'run') {
-        const result = await run(connection, sql, params);
-        return { rows: [result] };
-      }
+    return drizzle(
+        async (sql, params, method) => {
+            if (method === 'run') {
+                const result = await run(connection, sql, params);
+                return { rows: [result] };
+            }
 
-      const rows = await all(connection, sql, params);
-      if (method === 'values') {
-        return {
-          rows: rows.map((row) => Object.values(row)),
-        };
-      }
-      if (method === 'get') {
-        return {
-          rows: rows[0] ? [rows[0]] : [],
-        };
-      }
-      return { rows };
-    },
-    { schema },
-  );
+            const rows = await all(connection, sql, params);
+            if (method === 'values') {
+                return {
+                    rows: rows.map((row) => Object.values(row)),
+                };
+            }
+            if (method === 'get') {
+                return {
+                    rows: rows[0] ? [rows[0]] : [],
+                };
+            }
+            return { rows };
+        },
+        { schema },
+    );
 };

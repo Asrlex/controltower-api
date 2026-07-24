@@ -7,15 +7,15 @@ import { ExpenseRepositoryImplementation } from './repository/expenses.repositor
 import { EXPENSE_REPOSITORY } from './repository/expenses.repository.interface';
 
 @Module({
-  imports: [DatabaseModule, AuthModule],
-  controllers: [ExpenseController],
-  providers: [
-    {
-      provide: EXPENSE_REPOSITORY,
-      useClass: ExpenseRepositoryImplementation,
-    },
-    ExpenseService,
-    Logger,
-  ],
+    imports: [DatabaseModule, AuthModule],
+    controllers: [ExpenseController],
+    providers: [
+        {
+            provide: EXPENSE_REPOSITORY,
+            useClass: ExpenseRepositoryImplementation,
+        },
+        ExpenseService,
+        Logger,
+    ],
 })
 export class ExpenseModule {}

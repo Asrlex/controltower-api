@@ -5,10 +5,10 @@ import { CreateProductDto } from '@/api/home-management/entities/dtos/product.dt
 export const PRODUCT_REPOSITORY = 'PRODUCT_REPOSITORY';
 
 export interface ProductRepository extends GenericRepository<
-  ProductI,
-  string,
-  CreateProductDto
+    ProductI,
+    string,
+    CreateProductDto
 > {
-  getOrderProducts(type: string): Promise<string[]>;
-  postOrderProducts(type: string, order: string[]): Promise<void>;
+    getOrderProducts(type: string): Promise<string[]>;
+    postOrderProducts(type: string, order: string[]): Promise<void>;
 }

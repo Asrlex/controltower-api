@@ -10,7 +10,7 @@ type SqliteStatementResult = {
 };
 
 type SqliteStatement = {
-    all: (...params: unknown[]) => SqliteRow[];
+    all: (...params: unknown[]) => unknown[][];
     run: (...params: unknown[]) => SqliteStatementResult;
 };
 
@@ -29,9 +29,12 @@ const all = (
     connection: HomeManagementSqliteConnection,
     sql: string,
     params: unknown[],
-): Promise<SqliteRow[]> => {
-    const statement = connection.prepare(sql);
-    return Promise.resolve((statement.all(...params) as SqliteRow[]) ?? []);
+): Promise<unknown[][]> => {
+    const statement = connection.prepare(sql) as SqliteStatement & {
+        setReturnArrays?: (enabled: boolean) => void;
+    };
+    statement.setReturnArrays?.(true);
+    return Promise.resolve(statement.all(...params) ?? []);
 };
 
 const run = (
@@ -78,9 +81,7 @@ export const createDrizzleDatabase = (
 
             const rows = await all(connection, sql, params);
             if (method === 'values') {
-                return {
-                    rows: rows.map((row) => Object.values(row)),
-                };
+                return { rows };
             }
             if (method === 'get') {
                 return {

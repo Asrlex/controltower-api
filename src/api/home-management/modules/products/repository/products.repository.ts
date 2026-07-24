@@ -58,6 +58,9 @@ export class ProductRepositoryImplementation implements ProductRepository {
         const [{ total }] = await this.db
             .select({ total: count(products.id) })
             .from(products);
+        this.logger.log(
+            `Products cache miss, fetched ${entities.length} products from DB`,
+        );
         if (this.cacheManager) {
             await this.cacheManager.set(cacheKey, { entities, total });
         }
@@ -322,7 +325,6 @@ export class ProductRepositoryImplementation implements ProductRepository {
             .from(products)
             .leftJoin(productTags, eq(productTags.productId, products.id))
             .leftJoin(tags, eq(tags.id, productTags.tagId));
-
         const scopedQuery = productIds?.length
             ? query.where(inArray(products.id, productIds))
             : query;

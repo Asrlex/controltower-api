@@ -6,6 +6,7 @@ This folder contains project-level API documentation and an importable request c
 
 - `controltower-api.postman_collection.json`: Postman Collection v2.1 JSON that can be imported into Bruno.
 - `README.md`: this documentation page.
+- `database-workflow.md`: migration and seed workflow for SQLite and Postgres.
 
 ## Runtime Defaults
 

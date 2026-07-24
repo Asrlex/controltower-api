@@ -38,18 +38,26 @@ INSERT INTO products (name, unit) VALUES
 ('Harina', 'kg'),
 ('Levadura', 'unidad');
 
+-- SEED STORES
+INSERT INTO store (name) VALUES
+('N/A'),
+('Lidl'),
+('Carrefour'),
+('Aldi'),
+('Mercadona');
+
 -- SEED SHOPPING LIST
 INSERT INTO shopping_list (product_id, amount, store_id) VALUES
-((SELECT id FROM products WHERE name = 'Tomate' LIMIT 1), 5, 2),
-((SELECT id FROM products WHERE name = 'Lechuga' LIMIT 1), 3, 2),
-((SELECT id FROM products WHERE name = 'Pechuga de Pollo' LIMIT 1), 700, 2),
-((SELECT id FROM products WHERE name = 'Manzana' LIMIT 1), 4, 2),
-((SELECT id FROM products WHERE name = 'Plátano' LIMIT 1), 6, 2),
-((SELECT id FROM products WHERE name = 'Detergente' LIMIT 1), 2, 2),
-((SELECT id FROM products WHERE name = 'Jabón' LIMIT 1), 8, 2),
-((SELECT id FROM products WHERE name = 'Papel Higiénico' LIMIT 1), 10, 2),
-((SELECT id FROM products WHERE name = 'Zanahoria' LIMIT 1), 1, 2),
-((SELECT id FROM products WHERE name = 'Carne de ternera' LIMIT 1), 900, 2);
+((SELECT id FROM products WHERE name = 'Tomate' LIMIT 1), 5, (SELECT id FROM store WHERE name = 'Lidl' LIMIT 1)),
+((SELECT id FROM products WHERE name = 'Lechuga' LIMIT 1), 3, (SELECT id FROM store WHERE name = 'Lidl' LIMIT 1)),
+((SELECT id FROM products WHERE name = 'Pechuga de Pollo' LIMIT 1), 700, (SELECT id FROM store WHERE name = 'Lidl' LIMIT 1)),
+((SELECT id FROM products WHERE name = 'Manzana' LIMIT 1), 4, (SELECT id FROM store WHERE name = 'Lidl' LIMIT 1)),
+((SELECT id FROM products WHERE name = 'Plátano' LIMIT 1), 6, (SELECT id FROM store WHERE name = 'Lidl' LIMIT 1)),
+((SELECT id FROM products WHERE name = 'Detergente' LIMIT 1), 2, (SELECT id FROM store WHERE name = 'Lidl' LIMIT 1)),
+((SELECT id FROM products WHERE name = 'Jabón' LIMIT 1), 8, (SELECT id FROM store WHERE name = 'Lidl' LIMIT 1)),
+((SELECT id FROM products WHERE name = 'Papel Higiénico' LIMIT 1), 10, (SELECT id FROM store WHERE name = 'Lidl' LIMIT 1)),
+((SELECT id FROM products WHERE name = 'Zanahoria' LIMIT 1), 1, (SELECT id FROM store WHERE name = 'Lidl' LIMIT 1)),
+((SELECT id FROM products WHERE name = 'Carne de ternera' LIMIT 1), 900, (SELECT id FROM store WHERE name = 'Lidl' LIMIT 1));
 
 -- SEED PANTRY
 INSERT INTO pantry (product_id, amount) VALUES
@@ -63,14 +71,6 @@ INSERT INTO pantry (product_id, amount) VALUES
 ((SELECT id FROM products WHERE name = 'Yogur' LIMIT 1), 6),
 ((SELECT id FROM products WHERE name = 'Aceite de Oliva' LIMIT 1), 10),
 ((SELECT id FROM products WHERE name = 'Sal' LIMIT 1), 2);
-
--- SEED STORES
-INSERT INTO stores (name) VALUES
-('N/A'),
-('Lidl'),
-('Carrefour'),
-('Aldi'),
-('Mercadona');
 
 -- SEED TAGS
 INSERT INTO tag (name, type) VALUES
